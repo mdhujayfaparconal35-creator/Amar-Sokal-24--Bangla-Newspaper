@@ -1,7 +1,7 @@
 name: amarsokal24_app
 description: আমার সকাল ২৪ নিউজ অ্যাপ
 publish_to: 'none'
-version: 1.5.0+6
+version: 1.6.0+7
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -16,6 +16,7 @@ dependencies:
   share_plus: ^10.1.4
   shared_preferences: ^2.3.2
   webview_flutter: ^4.10.0
+  youtube_player_iframe: ^5.2.0
 
 dev_dependencies:
   flutter_test:
@@ -37,6 +38,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/logo.png
+    - assets/partners/
   fonts:
     - family: Kalpurush
       fonts:

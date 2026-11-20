@@ -99,3 +99,11 @@ Future<void> shareTo(BuildContext context, String where, String title, String li
   }
   if (!ok) await Share.share('$title\n$link');
 }
+
+/// ইউটিউব লিংক বা আইডি থেকে ১১ অক্ষরের ভিডিও আইডি বের করে
+String youtubeId(String s) {
+  final v = s.trim();
+  if (RegExp(r'^[A-Za-z0-9_-]{11}$').hasMatch(v)) return v;
+  final m = RegExp(r'(?:v=|youtu\.be/|embed/|shorts/|live/)([A-Za-z0-9_-]{11})').firstMatch(v);
+  return m?.group(1) ?? '';
+}

@@ -52,13 +52,9 @@ class AppTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = AppSettings.current;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final logoUrl = (dark && s.logo.darkUrl.isNotEmpty) ? s.logo.darkUrl : s.logo.url;
-    final Widget logo = logoUrl.isNotEmpty
-        ? NetImage(logoUrl, height: kLogoHeight, fit: BoxFit.contain)
-        : Image.asset('assets/logo.png', height: kLogoHeight, fit: BoxFit.contain);
+    const logo = AppLogo(height: kLogoHeight);
     if (s.header.style != 'logo_title') {
-      return Align(alignment: Alignment.centerLeft, child: logo);
+      return const Align(alignment: Alignment.centerLeft, child: logo);
     }
     final name = Text(s.appName, style: const TextStyle(fontWeight: FontWeight.bold));
     return Row(
@@ -482,7 +478,7 @@ class ShellScaffold extends StatelessWidget {
             centerTitle: top ? false : true,
             automaticallyImplyLeading: !top,
             toolbarHeight: top ? kBarHeight : null,
-            titleSpacing: top ? 16 : null,
+            titleSpacing: top ? 10 : null,
             actions: top ? [...?actions, ...headerActions(search: headerSearch)] : actions,
             bottom: top ? const TopTabBar() : null,
           ),

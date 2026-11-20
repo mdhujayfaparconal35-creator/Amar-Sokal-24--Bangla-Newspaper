@@ -19,7 +19,7 @@ class PostScreen extends StatefulWidget {
 
 class _PostScreenState extends State<PostScreen> {
   late Future<NewsDetail> _future = Api.post(widget.id);
-  double _fontSize = 21;
+  double _fontSize = 20;
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +27,14 @@ class _PostScreenState extends State<PostScreen> {
       drawer: const AppDrawer(),
       appBar: AppBar(
         toolbarHeight: kBarHeight,
-        titleSpacing: 0,
+        automaticallyImplyLeading: false,
+        leadingWidth: 46,
+        leading: IconButton(
+          tooltip: 'পেছনে',
+          icon: const Icon(Icons.arrow_back, size: 26),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        titleSpacing: 2,
         centerTitle: false,
         scrolledUnderElevation: 0,
         title: const AppTitle(),
@@ -152,12 +159,13 @@ class _PostScreenState extends State<PostScreen> {
           style: {
             'body': Style(
               fontFamily: 'Kalpurush',
+              textAlign: TextAlign.justify,
               fontSize: FontSize(_fontSize),
               lineHeight: const LineHeight(1.7),
               margin: Margins.zero,
               padding: HtmlPaddings.zero,
             ),
-            'p': Style(margin: Margins.only(bottom: 16)),
+            'p': Style(margin: Margins.only(bottom: 16), textAlign: TextAlign.justify),
             'a': Style(color: primary, textDecoration: TextDecoration.none),
             'img': Style(width: Width(100, Unit.percent), height: Height.auto(), margin: Margins.only(top: 6, bottom: 6)),
             'blockquote': Style(

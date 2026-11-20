@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'config.dart';
+import 'screens/video_player_screen.dart';
 import 'models.dart';
 import 'util.dart';
 import 'screens/post_screen.dart';
@@ -517,7 +518,7 @@ class VideoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => openYoutube(video.youtube),
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VideoPlayerScreen(video: video))),
       child: SizedBox(
         width: width,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -679,25 +680,117 @@ class ShareRow extends StatelessWidget {
   }
 }
 
-/// নিচের ফুটার: সম্পাদক, প্রকাশক ও কপিরাইট (নাম ফাঁকা থাকলে ওই লাইন বাদ)
+/// হেডার ও ফুটারের লোগো: অ্যাডমিনের লোগো থাকলে সেটি, না থাকলে অ্যাপের ভেতরের লোগো
+class AppLogo extends StatelessWidget {
+  final double height;
+  const AppLogo({super.key, required this.height});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = AppSettings.current;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final url = (dark && s.logo.darkUrl.isNotEmpty) ? s.logo.darkUrl : s.logo.url;
+    if (url.isNotEmpty) return NetImage(url, height: height, fit: BoxFit.contain);
+    return Image.asset('assets/logo.png', height: height, fit: BoxFit.contain);
+  }
+}
+
+class _Partner {
+  final String asset, url;
+  const _Partner(this.asset, this.url);
+}
+
+const List<_Partner> _partners = [
+  _Partner('assets/partners/p1.png', ''),
+  _Partner('assets/partners/p2.png', 'https://astechnologiesltd.com'),
+  _Partner('assets/partners/p3.png', ''),
+  _Partner('assets/partners/p4.png', 'https://shop.amarsokal24.com'),
+  _Partner('assets/partners/p5.png', 'https://epaper.amarsokal24.com'),
+  _Partner('assets/partners/p6.png', 'https://smm.astechnologiesltd.com'),
+  _Partner('assets/partners/p7.png', 'https://en.amarsokal24.com'),
+  _Partner('assets/partners/p8.png', ''),
+];
+
+/// "আমার সকালের অন্যান্য উদ্যোগ" লোগো গ্রিড
+class PartnersSection extends StatelessWidget {
+  const PartnersSection({super.key});
+
+  Widget _card(_Partner p) {
+    return Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: Colors.black.withAlpha(30)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: p.url.isEmpty ? null : () => openLink(p.url),
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: AspectRatio(aspectRatio: 3.4, child: Image.asset(p.asset, fit: BoxFit.contain)),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const brand = AppConfig.brand;
+    final rows = <Widget>[];
+    for (var i = 0; i < _partners.length; i += 2) {
+      rows.add(Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(children: [
+          Expanded(child: _card(_partners[i])),
+          const SizedBox(width: 10),
+          Expanded(child: i + 1 < _partners.length ? _card(_partners[i + 1]) : const SizedBox.shrink()),
+        ]),
+      ));
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 6, 14, 4),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(width: 5, height: 22, decoration: BoxDecoration(color: brand, borderRadius: BorderRadius.circular(3))),
+          const SizedBox(width: 10),
+          const Text('আমার সকালের অন্যান্য উদ্যোগ',
+              style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: Color(0xFF111111))),
+        ]),
+        const SizedBox(height: 12),
+        ...rows,
+      ]),
+    );
+  }
+}
+
+/// নিচের ফুটার (সাদা ব্যাকগ্রাউন্ড): অন্যান্য উদ্যোগ, লোগো, সম্পাদক ও প্রকাশক (বোল্ড), কপিরাইট
 class AppFooter extends StatelessWidget {
   const AppFooter({super.key});
 
   @override
   Widget build(BuildContext context) {
-    const style = TextStyle(fontSize: 14.5, height: 1.7, color: Colors.white70);
     final year = bn(DateTime.now().year);
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(top: 20),
-      padding: const EdgeInsets.fromLTRB(16, 22, 16, 26),
-      decoration: const BoxDecoration(color: AppConfig.brand),
+      padding: const EdgeInsets.fromLTRB(0, 20, 0, 26),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: AppConfig.brand, width: 4)),
+      ),
       child: Column(children: [
-        ClipOval(child: Image.asset('assets/logo.png', width: 54, height: 54)),
+        const PartnersSection(),
         const SizedBox(height: 10),
+        const Divider(height: 1, indent: 14, endIndent: 14),
+        const SizedBox(height: 18),
+        const AppLogo(height: 60),
+        const SizedBox(height: 12),
         if (AppConfig.editorPublisher.isNotEmpty)
-          Text('সম্পাদক ও প্রকাশক : ${AppConfig.editorPublisher}', style: style, textAlign: TextAlign.center),
-        Text('স্বত্ব © ${AppConfig.siteName} $year', style: style, textAlign: TextAlign.center),
+          Text('সম্পাদক ও প্রকাশক : ${AppConfig.editorPublisher}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: AppConfig.brand, height: 1.6)),
+        Text('স্বত্ব © ${AppConfig.siteName} $year',
+            textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, color: Color(0xFF555555), height: 1.7)),
       ]),
     );
   }
