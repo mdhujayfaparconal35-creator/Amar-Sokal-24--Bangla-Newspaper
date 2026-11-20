@@ -301,8 +301,6 @@ String? externalUrlOf(AppSettings s, String type, String target) {
   switch (type) {
     case 'tv':
       return s.liveTv.url;
-    case 'epaper':
-      return s.epaper.url;
     case 'link':
       return target;
     default:
@@ -428,7 +426,8 @@ List<Widget> headerActions({bool search = true}) => [
 class ComingSoonScreen extends StatelessWidget {
   final bool inShell;
   final String title;
-  const ComingSoonScreen({super.key, this.inShell = false, required this.title});
+  final String message;
+  const ComingSoonScreen({super.key, this.inShell = false, required this.title, this.message = 'শীঘ্রই আসছে'});
 
   @override
   Widget build(BuildContext context) {
@@ -439,7 +438,7 @@ class ComingSoonScreen extends StatelessWidget {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Icon(Icons.hourglass_empty, size: 56, color: Theme.of(context).disabledColor),
           const SizedBox(height: 12),
-          Text('শীঘ্রই আসছে', style: Theme.of(context).textTheme.titleMedium),
+          Text(message, textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleMedium),
         ]),
       ),
     );

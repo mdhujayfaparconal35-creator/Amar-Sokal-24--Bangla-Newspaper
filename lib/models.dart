@@ -192,7 +192,12 @@ class ThemeConf {
     final mode = _s(j['mode']);
     return ThemeConf(
       mode: const ['system', 'light', 'dark'].contains(mode) ? mode : 'system',
-      primary: _c(j['primary'], legacyPrimary),
+      // পুরনো ডিফল্ট লাল (#D32F2F / #E30713) থাকলে নতুন ব্র্যান্ড রঙ; অন্য রঙ অ্যাডমিন নিজে দিলে সেটাই
+      primary: () {
+        final c = _c(j['primary'], legacyPrimary);
+        final v = c.toARGB32();
+        return (v == 0xFFD32F2F || v == 0xFFE30713) ? AppConfig.brand : c;
+      }(),
       secondary: _c(j['secondary'], d.secondary),
       lightBg: _c(j['lightBg'], d.lightBg),
       lightText: _c(j['lightText'], d.lightText),
@@ -321,7 +326,7 @@ class TopTabsConf {
         TopTabItem(id: 't0', label: 'হোম', icon: 'home', type: 'home'),
         TopTabItem(id: 't1', label: 'সর্বশেষ', icon: 'bolt', type: 'latest'),
         TopTabItem(id: 't2', label: 'ভিডিও', icon: 'play', type: 'videos'),
-        TopTabItem(id: 't3', label: 'স্টোরি', icon: 'story', type: 'story'),
+        TopTabItem(id: 't3', label: 'রিলস', icon: 'story', type: 'story'),
         TopTabItem(id: 't4', label: 'নোটিফিকেশন', icon: 'bell', type: 'notifications'),
         TopTabItem(id: 't5', label: 'ই-পেপার', icon: 'paper', type: 'epaper'),
       ]);
@@ -339,6 +344,7 @@ class TopTabsConf {
   List<TopTabItem> visible(AppSettings s) {
     if (!enabled) return const [];
     bool ok(TopTabItem t) {
+      if (t.type == 'story' || t.type == 'epaper') return true; // রিলস ও ই-পেপার সবসময় থাকে
       if (!t.on) return false;
       switch (t.type) {
         case 'home':
@@ -361,7 +367,21 @@ class TopTabsConf {
       }
     }
 
-    return items.where(ok).toList();
+    final list = items.where(ok).map((t) {
+      // পুরনো সেভ করা ডিজাইনের "স্টোরি" ট্যাব এখন "রিলস"
+      if (t.type == 'story' && (t.label.isEmpty || t.label == 'স্টোরি')) {
+        return TopTabItem(id: t.id, label: 'রিলস', icon: 'story', iconUrl: t.iconUrl, type: 'story');
+      }
+      return t;
+    }).toList();
+    // অ্যাডমিনের সেভ করা তালিকায় না থাকলেও ৬টি ট্যাব পূর্ণ করা
+    if (!list.any((t) => t.type == 'story')) {
+      list.add(const TopTabItem(id: 'ts', label: 'রিলস', icon: 'story', type: 'story'));
+    }
+    if (!list.any((t) => t.type == 'epaper')) {
+      list.add(const TopTabItem(id: 'te', label: 'ই-পেপার', icon: 'paper', type: 'epaper'));
+    }
+    return list;
   }
 }
 

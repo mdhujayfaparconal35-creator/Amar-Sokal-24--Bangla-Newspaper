@@ -678,11 +678,11 @@ class AppFooter extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
       decoration: BoxDecoration(
         color: theme.colorScheme.onSurface.withAlpha(14),
-        border: Border(top: BorderSide(color: theme.dividerColor, width: 2)),
+        border: Border(top: BorderSide(color: theme.colorScheme.primary, width: 3)),
       ),
       child: Column(children: [
-        if (AppConfig.editor.isNotEmpty) Text('সম্পাদক : ${AppConfig.editor}', style: style, textAlign: TextAlign.center),
-        if (AppConfig.publisher.isNotEmpty) Text('প্রকাশক : ${AppConfig.publisher}', style: style, textAlign: TextAlign.center),
+        if (AppConfig.editorPublisher.isNotEmpty)
+          Text('সম্পাদক ও প্রকাশক : ${AppConfig.editorPublisher}', style: style, textAlign: TextAlign.center),
         Text('স্বত্ব © ${AppConfig.siteName} $year', style: style, textAlign: TextAlign.center),
       ]),
     );

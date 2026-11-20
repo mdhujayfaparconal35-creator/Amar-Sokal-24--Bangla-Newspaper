@@ -5,6 +5,7 @@ import 'config.dart';
 import 'dynamic_ui.dart';
 import 'models.dart';
 import 'screens/category_screen.dart';
+import 'screens/epaper_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/search_screen.dart';
@@ -28,8 +29,14 @@ ThemeData _buildTheme(AppSettings s, Brightness b) {
   final bg = dark ? t.darkBg : t.lightBg;
   final fg = dark ? t.darkText : t.lightText;
   final card = dark ? t.darkCard : t.lightCard;
-  final scheme = ColorScheme.fromSeed(seedColor: t.primary, brightness: b).copyWith(
-    primary: t.primary,
+  // গাঢ় নীল ব্র্যান্ড রং ডার্ক মোডের কালো ব্যাকগ্রাউন্ডে মিশে যায়, তাই ডার্ক মোডে একটু হালকা করা হয়
+  var prim = t.primary;
+  if (dark) {
+    final hsl = HSLColor.fromColor(prim);
+    if (hsl.lightness < 0.55) prim = hsl.withLightness(0.62).toColor();
+  }
+  final scheme = ColorScheme.fromSeed(seedColor: prim, brightness: b).copyWith(
+    primary: prim,
     secondary: t.secondary,
     surface: bg,
     onSurface: fg,
@@ -50,7 +57,7 @@ ThemeData _buildTheme(AppSettings s, Brightness b) {
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: s.nav.bg ?? bg,
       surfaceTintColor: Colors.transparent,
-      indicatorColor: (s.nav.active ?? t.primary).withAlpha(40),
+      indicatorColor: (s.nav.active ?? prim).withAlpha(40),
     ),
   );
 }
@@ -178,9 +185,9 @@ class _ShellState extends State<Shell> {
       case 'notifications':
         return const NotificationsScreen(inShell: true);
       case 'story':
-        return ComingSoonScreen(inShell: true, title: label.isEmpty ? 'স্টোরি' : label);
+        return ComingSoonScreen(inShell: true, title: label.isEmpty ? 'রিলস' : label, message: 'রিলস লোড হয়নি।\nশীঘ্রই চালু হবে।');
       case 'epaper':
-        return ComingSoonScreen(inShell: true, title: label.isEmpty ? 'ই-পেপার' : label);
+        return const EpaperScreen(inShell: true);
       case 'latest':
         return CategoryScreen(category: Category(id: 0, name: label.isEmpty ? 'সর্বশেষ' : label, slug: ''), inShell: true);
       default:
@@ -240,7 +247,7 @@ class _ShellState extends State<Shell> {
       WidgetsBinding.instance.addPostFrameCallback((_) => TabNav.current.value = _cur);
     }
 
-    final showBar = s.nav.enabled && bottom.length > 1;
+    const showBar = false; // নিচের হোম/ভিডিও/সার্চ বার সরানো হয়েছে (ওপরের ট্যাব বারই মূল নেভিগেশন)
     final active = s.nav.active;
     // বর্তমান পেজ নিচের বারে না থাকলে (শুধু ওপরের ট্যাবে আছে) নিচে কিছু হাইলাইট হবে না
     final bi = bottom.indexWhere((i) => pageKeyOf(i.type, i.target) == _cur);
