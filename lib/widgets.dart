@@ -1,0 +1,520 @@
+import 'dart:async';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
+import 'models.dart';
+import 'util.dart';
+import 'screens/post_screen.dart';
+
+void openPost(BuildContext context, int id) {
+  Navigator.of(context).push(MaterialPageRoute(builder: (_) => PostScreen(id: id)));
+}
+
+class NetImage extends StatelessWidget {
+  final String url;
+  final double? width, height;
+  final BoxFit fit;
+  const NetImage(this.url, {super.key, this.width, this.height, this.fit = BoxFit.cover});
+
+  @override
+  Widget build(BuildContext context) {
+    final ph = Container(
+      width: width,
+      height: height,
+      color: Colors.black12,
+      child: const Icon(Icons.image_outlined, color: Colors.black38),
+    );
+    if (url.isEmpty) return ph;
+    return CachedNetworkImage(
+      imageUrl: url,
+      width: width,
+      height: height,
+      fit: fit,
+      placeholder: (_, __) => Container(width: width, height: height, color: Colors.black12),
+      errorWidget: (_, __, ___) => ph,
+    );
+  }
+}
+
+class SectionTitle extends StatelessWidget {
+  final String text;
+  const SectionTitle(this.text, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Theme.of(context).colorScheme.primary;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 18, 12, 8),
+      child: Row(children: [
+        Container(width: 4, height: 20, color: c),
+        const SizedBox(width: 8),
+        Text(text, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+      ]),
+    );
+  }
+}
+
+/// নিউজ কার্ড: ধরন (small/compact/big/overlay) অ্যাডমিন থেকে ঠিক হয়।
+/// [style] না দিলে অ্যাডমিনের সাধারণ কার্ড সেটিং ব্যবহার হয়।
+class NewsCard extends StatelessWidget {
+  final NewsItem item;
+  final String? style;
+  const NewsCard(this.item, {super.key, this.style});
+
+  @override
+  Widget build(BuildContext context) {
+    final cc = AppSettings.current.cards;
+    final st = (style == null || style!.isEmpty) ? cc.style : style!;
+    switch (st) {
+      case 'overlay':
+        return Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: BigNewsCard(item));
+      case 'big':
+        return _bigCard(context, cc);
+      case 'compact':
+        return _compactCard(context, cc);
+      default:
+        return _smallCard(context, cc);
+    }
+  }
+
+  Widget _meta(BuildContext context, CardConf cc) {
+    final primary = Theme.of(context).colorScheme.primary;
+    final showCat = cc.showCategory && item.category != null;
+    if (!showCat && !cc.showTime) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(children: [
+        if (showCat)
+          Flexible(
+            child: Text(item.category!.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12, color: primary, fontWeight: FontWeight.w600)),
+          ),
+        if (showCat && cc.showTime) const SizedBox(width: 8),
+        if (cc.showTime) Text(timeAgo(item.date), style: const TextStyle(fontSize: 12, color: Colors.grey)),
+      ]),
+    );
+  }
+
+  Widget _excerpt(CardConf cc) {
+    if (!cc.showExcerpt || item.excerpt.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Text(item.excerpt,
+          maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, color: Colors.grey, height: 1.3)),
+    );
+  }
+
+  Widget _title({double size = 16, int lines = 3}) => Text(item.title,
+      maxLines: lines,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(fontSize: size, fontWeight: FontWeight.w600, height: 1.35));
+
+  Widget _smallCard(BuildContext context, CardConf cc) {
+    final image = ClipRRect(
+      borderRadius: BorderRadius.circular(cc.radius),
+      child: NetImage(item.image, width: 112, height: 78),
+    );
+    final text = Expanded(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _title(),
+        _excerpt(cc),
+        _meta(context, cc),
+      ]),
+    );
+    return InkWell(
+      onTap: () => openPost(context, item.id),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: cc.imageRight ? [text, const SizedBox(width: 12), image] : [image, const SizedBox(width: 12), text],
+        ),
+      ),
+    );
+  }
+
+  Widget _bigCard(BuildContext context, CardConf cc) {
+    return InkWell(
+      onTap: () => openPost(context, item.id),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(cc.radius),
+            child: AspectRatio(aspectRatio: 16 / 9, child: NetImage(item.image)),
+          ),
+          const SizedBox(height: 8),
+          _title(size: 18),
+          _excerpt(cc),
+          _meta(context, cc),
+        ]),
+      ),
+    );
+  }
+
+  Widget _compactCard(BuildContext context, CardConf cc) {
+    return InkWell(
+      onTap: () => openPost(context, item.id),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.withAlpha(60)))),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          _title(size: 16, lines: 2),
+          _excerpt(cc),
+          _meta(context, cc),
+        ]),
+      ),
+    );
+  }
+}
+
+/// বড় কার্ড: পুরো প্রস্থের ছবির ওপর শিরোনাম (প্রধান খবর / overlay ধরন)
+class BigNewsCard extends StatelessWidget {
+  final NewsItem item;
+  const BigNewsCard(this.item, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = AppSettings.current.theme.radius;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: GestureDetector(
+        onTap: () => openPost(context, item.id),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(radius),
+          child: AspectRatio(
+            aspectRatio: 16 / 10,
+            child: Stack(fit: StackFit.expand, children: [
+              NetImage(item.image),
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Colors.black87],
+                    stops: [0.45, 1],
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 12,
+                right: 12,
+                bottom: 12,
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                  if (item.category != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(item.category!.name, style: const TextStyle(color: Colors.white, fontSize: 12)),
+                    ),
+                  const SizedBox(height: 6),
+                  Text(item.title,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, height: 1.3)),
+                ]),
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// ব্যানার/বিজ্ঞাপনের ছবি (সার্ভার থেকে আসা https ছবি)। ট্যাপ করলে লিংক খোলে।
+class PromoImage extends StatelessWidget {
+  final PromoItem item;
+  final bool isAd;
+  const PromoImage(this.item, {super.key, this.isAd = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final r = AppSettings.current.cards.radius;
+    final image = item.ratio > 0
+        ? AspectRatio(aspectRatio: item.ratio, child: NetImage(item.image))
+        : CachedNetworkImage(
+            imageUrl: item.image,
+            width: double.infinity,
+            fit: BoxFit.fitWidth,
+            placeholder: (_, __) => Container(height: 100, color: Colors.black12),
+            errorWidget: (_, __, ___) => const SizedBox.shrink(),
+          );
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: GestureDetector(
+        onTap: item.link.isEmpty ? null : () => openLink(item.link),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(r),
+          child: Stack(children: [
+            image,
+            if (isAd)
+              Positioned(
+                right: 6,
+                top: 6,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(4)),
+                  child: const Text('বিজ্ঞাপন', style: TextStyle(color: Colors.white, fontSize: 10)),
+                ),
+              ),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// লাইভ টিভি / ই-পেপার কার্ড
+class LinkCard extends StatelessWidget {
+  final LinkBox box;
+  final IconData icon;
+  const LinkCard(this.box, {super.key, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppSettings.current.theme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: GestureDetector(
+        onTap: () => openLink(box.url),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(t.radius),
+          child: Stack(alignment: Alignment.bottomLeft, children: [
+            if (box.image.isNotEmpty)
+              CachedNetworkImage(
+                imageUrl: box.image,
+                width: double.infinity,
+                fit: BoxFit.fitWidth,
+                placeholder: (_, __) => Container(height: 120, color: t.secondary),
+                errorWidget: (_, __, ___) => Container(height: 80, color: t.secondary),
+              )
+            else
+              Container(height: 80, width: double.infinity, color: t.secondary),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, Colors.black87]),
+              ),
+              child: Row(children: [
+                Icon(icon, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(box.title,
+                      style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
+                ),
+                const Icon(Icons.chevron_right, color: Colors.white),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class BreakItem {
+  final String text;
+  final int? postId;
+  const BreakItem(this.text, [this.postId]);
+}
+
+/// ব্রেকিং নিউজ বার: লেখাগুলো একটার পর একটা বদলায় (ট্যাপ করলে নিউজ খোলে, যদি নিউজের আইডি থাকে)
+class BreakingBar extends StatefulWidget {
+  final BreakingConf conf;
+  final List<BreakItem> items;
+  const BreakingBar({super.key, required this.conf, required this.items});
+
+  @override
+  State<BreakingBar> createState() => _BreakingBarState();
+}
+
+class _BreakingBarState extends State<BreakingBar> {
+  int _i = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted || widget.items.length < 2) return;
+      setState(() => _i = (_i + 1) % widget.items.length);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.items.isEmpty) return const SizedBox.shrink();
+    final c = widget.conf;
+    final it = widget.items[_i % widget.items.length];
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: GestureDetector(
+        onTap: it.postId == null ? null : () => openPost(context, it.postId!),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+          decoration: BoxDecoration(color: c.bg, borderRadius: BorderRadius.circular(AppSettings.current.cards.radius)),
+          child: Row(children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(4)),
+              child: Text(c.label, style: TextStyle(color: c.color, fontWeight: FontWeight.bold, fontSize: 13)),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 350),
+                child: Text(it.text,
+                    key: ValueKey('$_i-${it.text}'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: c.color, fontSize: 15, fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class VideoCard extends StatelessWidget {
+  final VideoItem video;
+  final double? width;
+  const VideoCard(this.video, {super.key, this.width});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => openYoutube(video.youtube),
+      child: SizedBox(
+        width: width,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: AspectRatio(
+              aspectRatio: 16 / 9,
+              child: Stack(fit: StackFit.expand, children: [
+                NetImage(video.thumb),
+                const Center(child: Icon(Icons.play_circle_fill, color: Colors.white, size: 48)),
+              ]),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(video.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, height: 1.3)),
+        ]),
+      ),
+    );
+  }
+}
+
+/// পেজ ধরে ধরে লোড হওয়া তালিকা (নিচে গেলে পরের পেজ আসে)
+class PagedList<T> extends StatefulWidget {
+  final Future<List<T>> Function(int page) fetch;
+  final int pageSize;
+  final Widget Function(BuildContext, T) itemBuilder;
+  const PagedList({super.key, required this.fetch, required this.pageSize, required this.itemBuilder});
+
+  @override
+  State<PagedList<T>> createState() => _PagedListState<T>();
+}
+
+class _PagedListState<T> extends State<PagedList<T>> {
+  final List<T> _items = [];
+  final ScrollController _sc = ScrollController();
+  int _page = 1;
+  bool _loading = false, _done = false, _error = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _sc.addListener(() {
+      if (_sc.position.pixels > _sc.position.maxScrollExtent - 500) _load();
+    });
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _sc.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    if (_loading || _done) return;
+    setState(() {
+      _loading = true;
+      _error = false;
+    });
+    try {
+      final r = await widget.fetch(_page);
+      if (!mounted) return;
+      setState(() {
+        _items.addAll(r);
+        if (r.length < widget.pageSize) _done = true;
+        _page++;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _error = true);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _refresh() async {
+    setState(() {
+      _items.clear();
+      _page = 1;
+      _done = false;
+      _error = false;
+    });
+    await _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      child: ListView.builder(
+        controller: _sc,
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: _items.length + 1,
+        itemBuilder: (context, i) {
+          if (i < _items.length) return widget.itemBuilder(context, _items[i]);
+          if (_loading) {
+            return const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()));
+          }
+          if (_error) {
+            return Padding(
+              padding: const EdgeInsets.all(24),
+              child: Center(
+                child: Column(children: [
+                  const Text('লোড করা যায়নি, ইন্টারনেট দেখুন'),
+                  TextButton(onPressed: _load, child: const Text('আবার চেষ্টা করুন')),
+                ]),
+              ),
+            );
+          }
+          if (_items.isEmpty && _done) {
+            return const Padding(padding: EdgeInsets.all(32), child: Center(child: Text('কিছু পাওয়া যায়নি')));
+          }
+          return const SizedBox(height: 24);
+        },
+      ),
+    );
+  }
+}
