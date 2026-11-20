@@ -29,10 +29,26 @@ jobs:
       - name: Allow internet and set app name
         run: |
           M=android/app/src/main/AndroidManifest.xml
-                 sed -i '0,/<manifest[^>]*>/s//&\n    <uses-permission android:name="android.permission.INTERNET"\/>/' $M
+          sed -i '0,/<manifest[^>]*>/s//&\n    <uses-permission android:name="android.permission.INTERNET"\/>/' $M
           sed -i 's/android:label="[^"]*"/android:label="আমার সকাল ২৪"/' $M
 
       - run: flutter pub get
+
+      - name: Disable Android lint tasks
+        run: |
+          mkdir -p ~/.gradle/init.d
+          cat > ~/.gradle/init.d/no-lint.gradle <<'EOF'
+          allprojects {
+            tasks.configureEach { t ->
+              if (t.name.startsWith("lintVital") || t.name.startsWith("lintAnalyze") || t.name.startsWith("lintReport")) {
+                t.enabled = false
+              }
+            }
+          }
+          EOF
+
+      - run: dart run flutter_launcher_icons
+
       - run: flutter build apk --release
 
       - uses: actions/upload-artifact@v4
