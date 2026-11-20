@@ -6,6 +6,7 @@ import 'dynamic_ui.dart';
 import 'models.dart';
 import 'screens/category_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/notifications_screen.dart';
 import 'screens/search_screen.dart';
 import 'screens/videos_screen.dart';
 import 'util.dart';
@@ -43,7 +44,8 @@ ThemeData _buildTheme(AppSettings s, Brightness b) {
       backgroundColor: s.header.bg ?? bg,
       foregroundColor: s.header.fg ?? fg,
       surfaceTintColor: Colors.transparent,
-      centerTitle: s.header.centered,
+      centerTitle: false,
+      scrolledUnderElevation: 0,
     ),
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: s.nav.bg ?? bg,
@@ -119,13 +121,15 @@ class Shell extends StatefulWidget {
 }
 
 class _ShellState extends State<Shell> {
-  int _index = 0;
+  // বর্তমান পেজের চাবি (pageKeyOf দেখুন); নিচের বার ও ওপরের ট্যাব একই চাবি ভাগ করে
+  String _cur = 'home';
   // পেজগুলো প্রথমবার ট্যাপ করলেই লোড হয় (অকারণে সার্ভারে রিকোয়েস্ট যায় না)
   final Map<String, Widget> _pages = {};
 
   @override
   void initState() {
     super.initState();
+    TabNav.onSelect = _select;
     ConfigStore.notifier.addListener(_onConfig);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) maybeShowPopup(context);
@@ -134,6 +138,7 @@ class _ShellState extends State<Shell> {
 
   @override
   void dispose() {
+    if (TabNav.onSelect == _select) TabNav.onSelect = null;
     ConfigStore.notifier.removeListener(_onConfig);
     super.dispose();
   }
@@ -149,31 +154,60 @@ class _ShellState extends State<Shell> {
     return list.isEmpty ? NavConf.defaults().items : list;
   }
 
-  Widget _buildPage(NavItem it) {
-    switch (it.type) {
+  /// পেজের চাবি => ট্যাবের নাম (শিরোনামের জন্য)
+  Map<String, String> _labels(AppSettings s) {
+    final m = <String, String>{};
+    for (final i in _items(s)) {
+      final k = pageKeyOf(i.type, i.target);
+      if (k != null) m.putIfAbsent(k, () => i.label);
+    }
+    for (final t in s.topTabs.visible(s)) {
+      final k = pageKeyOf(t.type, t.target);
+      if (k != null) m.putIfAbsent(k, () => t.label);
+    }
+    return m;
+  }
+
+  Widget _buildPage(String key, AppSettings s) {
+    final label = _labels(s)[key] ?? '';
+    switch (key) {
       case 'videos':
-        return const VideosScreen();
+        return const VideosScreen(inShell: true);
       case 'search':
-        return const SearchScreen();
-      case 'category':
-        return CategoryScreen(category: Category(id: int.tryParse(it.target) ?? 0, name: it.label, slug: ''));
+        return const SearchScreen(inShell: true);
+      case 'notifications':
+        return const NotificationsScreen(inShell: true);
+      case 'story':
+        return ComingSoonScreen(inShell: true, title: label.isEmpty ? 'স্টোরি' : label);
+      case 'epaper':
+        return ComingSoonScreen(inShell: true, title: label.isEmpty ? 'ই-পেপার' : label);
+      case 'latest':
+        return CategoryScreen(category: Category(id: 0, name: label.isEmpty ? 'সর্বশেষ' : label, slug: ''), inShell: true);
       default:
+        if (key.startsWith('category:')) {
+          final id = int.tryParse(key.substring(9)) ?? 0;
+          if (id == 0) return ComingSoonScreen(inShell: true, title: label);
+          return CategoryScreen(category: Category(id: id, name: label, slug: ''), inShell: true);
+        }
         return const HomeScreen();
     }
   }
 
-  /// লিংকধর্মী ট্যাব (লাইভ টিভি / ই-পেপার / লিংক) অ্যাপের ভেতরে পেজ নয়, ব্রাউজারে খোলে
-  String? _externalUrl(AppSettings s, NavItem it) {
-    switch (it.type) {
-      case 'tv':
-        return s.liveTv.url;
-      case 'epaper':
-        return s.epaper.url;
-      case 'link':
-        return it.target;
-      default:
-        return null;
+  /// নিচের বার বা ওপরের ট্যাব — যেখানেই ট্যাপ হোক
+  void _select(String type, String target) {
+    final s = AppSettings.current;
+    final ext = externalUrlOf(s, type, target);
+    if (ext != null) {
+      openLink(ext);
+      return;
     }
+    final key = pageKeyOf(type, target);
+    if (key == null || !mounted) return;
+    setState(() {
+      _pages.putIfAbsent(key, () => _buildPage(key, s));
+      _cur = key;
+    });
+    TabNav.current.value = key;
   }
 
   @override
@@ -185,43 +219,50 @@ class _ShellState extends State<Shell> {
       return MaintenanceScreen(onRetry: () => ConfigStore.refresh());
     }
 
-    final items = _items(s);
-    if (_index >= items.length) _index = 0;
-    final keys = items.map((i) => i.key).toSet();
-    _pages.removeWhere((k, _) => !keys.contains(k));
-    final cur = items[_index];
-    if (_externalUrl(s, cur) == null) _pages.putIfAbsent(cur.key, () => _buildPage(cur));
+    final bottom = _items(s);
+    final tops = s.topTabs.visible(s);
 
-    final showBar = s.nav.enabled && items.length > 1;
+    // সব পেজের চাবি (ডুপ্লিকেট বাদ): নিচের বারের হোম আর ওপরের হোম একই পেজ
+    final keys = <String>[];
+    for (final i in bottom) {
+      final k = pageKeyOf(i.type, i.target);
+      if (k != null && !keys.contains(k)) keys.add(k);
+    }
+    for (final t in tops) {
+      final k = pageKeyOf(t.type, t.target);
+      if (k != null && !keys.contains(k)) keys.add(k);
+    }
+    if (keys.isEmpty) keys.add('home');
+    if (!keys.contains(_cur)) _cur = keys.first;
+    _pages.removeWhere((k, _) => !keys.contains(k));
+    _pages.putIfAbsent(_cur, () => _buildPage(_cur, s));
+    if (TabNav.current.value != _cur) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => TabNav.current.value = _cur);
+    }
+
+    final showBar = s.nav.enabled && bottom.length > 1;
     final active = s.nav.active;
+    // বর্তমান পেজ নিচের বারে না থাকলে (শুধু ওপরের ট্যাবে আছে) নিচে কিছু হাইলাইট হবে না
+    final bi = bottom.indexWhere((i) => pageKeyOf(i.type, i.target) == _cur);
+    final sel = bi < 0 ? 0 : bi;
 
     return Scaffold(
       body: IndexedStack(
-        index: _index,
-        children: [for (final i in items) _pages[i.key] ?? const SizedBox.shrink()],
+        index: keys.indexOf(_cur),
+        children: [for (final k in keys) _pages[k] ?? const SizedBox.shrink()],
       ),
       bottomNavigationBar: !showBar
           ? null
           : NavigationBar(
-              selectedIndex: _index,
-              onDestinationSelected: (i) {
-                final it = items[i];
-                final ext = _externalUrl(s, it);
-                if (ext != null) {
-                  openLink(ext);
-                  return;
-                }
-                setState(() {
-                  _pages.putIfAbsent(it.key, () => _buildPage(it));
-                  _index = i;
-                });
-              },
+              selectedIndex: sel,
+              indicatorColor: bi < 0 ? Colors.transparent : null,
+              onDestinationSelected: (i) => _select(bottom[i].type, bottom[i].target),
               destinations: [
-                for (final i in items)
+                for (var n = 0; n < bottom.length; n++)
                   NavigationDestination(
-                    icon: Icon(iconFor(i.icon)),
-                    selectedIcon: Icon(iconFor(i.icon), color: active),
-                    label: i.label,
+                    icon: Icon(iconFor(bottom[n].icon)),
+                    selectedIcon: Icon(iconFor(bottom[n].icon), color: bi < 0 ? null : active),
+                    label: bottom[n].label,
                   ),
               ],
             ),

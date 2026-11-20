@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import '../api.dart';
+import '../dynamic_ui.dart';
 import '../models.dart';
 import '../widgets.dart';
 
 class VideosScreen extends StatelessWidget {
-  const VideosScreen({super.key});
+  final bool inShell;
+  const VideosScreen({super.key, this.inShell = false});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('ভিডিও'), centerTitle: true),
+    return ShellScaffold(
+      inShell: inShell,
+      title: const Text('ভিডিও'),
       body: PagedList<VideoItem>(
         pageSize: 12,
         fetch: (p) => Api.videos(page: p),

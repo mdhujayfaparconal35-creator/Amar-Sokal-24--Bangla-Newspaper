@@ -209,27 +209,39 @@ class ThemeConf {
 class LogoConf {
   final String url, darkUrl;
   final double height;
-  const LogoConf({this.url = '', this.darkUrl = '', this.height = 28});
+  const LogoConf({this.url = '', this.darkUrl = '', this.height = 40});
 
   factory LogoConf.fromJson(Map<String, dynamic> j) => LogoConf(
         url: _s(j['url']),
         darkUrl: _s(j['darkUrl']),
-        height: _d(j['height'], 28).clamp(16, 64).toDouble(),
+        height: _d(j['height'], 40).clamp(16, 80).toDouble(),
       );
 }
 
 class HeaderConf {
   final String style; // title | logo | logo_title
+  final String iconStyle; // plain | circle (গোল ধূসর বাটন)
+  final String iconSide; // right | left
   final Color? bg, fg;
   final bool centered, search;
-  const HeaderConf({this.style = 'title', this.bg, this.fg, this.centered = true, this.search = false});
+  const HeaderConf({
+    this.style = 'logo',
+    this.iconStyle = 'circle',
+    this.iconSide = 'right',
+    this.bg,
+    this.fg,
+    this.centered = false,
+    this.search = true,
+  });
 
   factory HeaderConf.fromJson(Map<String, dynamic> j) => HeaderConf(
-        style: const ['title', 'logo', 'logo_title'].contains(_s(j['style'])) ? _s(j['style']) : 'title',
+        style: const ['title', 'logo', 'logo_title'].contains(_s(j['style'])) ? _s(j['style']) : 'logo',
+        iconStyle: _s(j['iconStyle']) == 'plain' ? 'plain' : 'circle',
+        iconSide: _s(j['iconSide']) == 'left' ? 'left' : 'right',
         bg: _co(j['bg']),
         fg: _co(j['fg']),
-        centered: _b(j['centered'], true),
-        search: _b(j['search'], false),
+        centered: _b(j['centered'], false),
+        search: _b(j['search'], true),
       );
 }
 
@@ -273,8 +285,88 @@ class NavConf {
   }
 }
 
+/// ওপরের আইকন ট্যাব বারের একটি আইটেম (অ্যাডমিন: "লোগো ও ওপরের ট্যাব")
+class TopTabItem {
+  final String id, label, icon, iconUrl, type, target;
+  final bool on;
+  const TopTabItem({
+    required this.id,
+    required this.label,
+    required this.icon,
+    this.iconUrl = '',
+    required this.type,
+    this.target = '',
+    this.on = true,
+  });
+
+  factory TopTabItem.fromJson(Map<String, dynamic> j) => TopTabItem(
+        id: _s(j['id']),
+        label: _s(j['label']),
+        icon: _s(j['icon']),
+        iconUrl: _s(j['iconUrl']),
+        type: _s(j['type']),
+        target: _s(j['target']),
+        on: j['on'] != false,
+      );
+}
+
+class TopTabsConf {
+  final bool enabled, showLabel;
+  final Color? bg, fg, active;
+  final List<TopTabItem> items;
+  const TopTabsConf({this.enabled = false, this.showLabel = true, this.bg, this.fg, this.active, this.items = const []});
+
+  /// কালবেলা স্টাইলের ৬টি ট্যাব (ইন্টারনেট/কনফিগ না থাকলে এটাই চলে)
+  factory TopTabsConf.defaults() => const TopTabsConf(enabled: true, items: [
+        TopTabItem(id: 't0', label: 'হোম', icon: 'home', type: 'home'),
+        TopTabItem(id: 't1', label: 'সর্বশেষ', icon: 'bolt', type: 'latest'),
+        TopTabItem(id: 't2', label: 'ভিডিও', icon: 'play', type: 'videos'),
+        TopTabItem(id: 't3', label: 'স্টোরি', icon: 'story', type: 'story'),
+        TopTabItem(id: 't4', label: 'নোটিফিকেশন', icon: 'bell', type: 'notifications'),
+        TopTabItem(id: 't5', label: 'ই-পেপার', icon: 'paper', type: 'epaper'),
+      ]);
+
+  factory TopTabsConf.fromJson(Map<String, dynamic> j) => TopTabsConf(
+        enabled: _b(j['enabled'], false),
+        showLabel: _b(j['showLabel'], true),
+        bg: _co(j['bg']),
+        fg: _co(j['fg']),
+        active: _co(j['activeColor']),
+        items: _l(j['items']).map((e) => TopTabItem.fromJson(_m(e))).where((t) => t.type.isNotEmpty).toList(),
+      );
+
+  /// এখন সত্যিই দেখানোর মতো ট্যাব (চালু + দরকারি লিংক/ক্যাটাগরি দেওয়া আছে)
+  List<TopTabItem> visible(AppSettings s) {
+    if (!enabled) return const [];
+    bool ok(TopTabItem t) {
+      if (!t.on) return false;
+      switch (t.type) {
+        case 'home':
+        case 'latest':
+        case 'videos':
+        case 'search':
+        case 'notifications':
+        case 'story': // এখনো ভেতরে কিছু নেই: "শীঘ্রই আসছে" পেজ দেখায়
+          return true;
+        case 'category':
+          return true; // ক্যাটাগরি বাছা না থাকলে (যেমন স্টোরি) "শীঘ্রই আসছে" পেজ
+        case 'link':
+          return t.target.startsWith('https://');
+        case 'epaper':
+          return true; // লিংক থাকলে ব্রাউজারে খোলে, না থাকলে "শীঘ্রই আসছে" পেজ
+        case 'tv':
+          return s.liveTv.url.isNotEmpty;
+        default:
+          return false;
+      }
+    }
+
+    return items.where(ok).toList();
+  }
+}
+
 class CardConf {
-  final String style; // small | compact | big | overlay
+  final String style; // small | compact | big | overlay | grid
   final double radius;
   final bool showCategory, showTime, showExcerpt, imageRight;
   const CardConf({
@@ -287,7 +379,7 @@ class CardConf {
   });
 
   factory CardConf.fromJson(Map<String, dynamic> j) => CardConf(
-        style: const ['small', 'compact', 'big', 'overlay'].contains(_s(j['style'])) ? _s(j['style']) : 'small',
+        style: const ['small', 'compact', 'big', 'overlay', 'grid'].contains(_s(j['style'])) ? _s(j['style']) : 'small',
         radius: _d(j['radius'], 8).clamp(0, 24).toDouble(),
         showCategory: _b(j['showCategory'], true),
         showTime: _b(j['showTime'], true),
@@ -418,6 +510,7 @@ class AppSettings {
   final LogoConf logo;
   final HeaderConf header;
   final NavConf nav;
+  final TopTabsConf topTabs;
   final CardConf cards;
   final List<SectionConf> sections;
   final List<PromoItem> banners, ads;
@@ -436,6 +529,7 @@ class AppSettings {
     required this.logo,
     required this.header,
     required this.nav,
+    required this.topTabs,
     required this.cards,
     required this.sections,
     required this.banners,
@@ -461,6 +555,7 @@ class AppSettings {
         logo: const LogoConf(),
         header: const HeaderConf(),
         nav: NavConf.defaults(),
+        topTabs: TopTabsConf.defaults(),
         cards: const CardConf(),
         sections: [
           SectionConf(type: 'chips', title: '', count: 0, category: 0, on: true),
@@ -493,6 +588,7 @@ class AppSettings {
       logo: LogoConf.fromJson(_m(j['logo'])),
       header: HeaderConf.fromJson(_m(j['header'])),
       nav: j['bottomNav'] is Map ? NavConf.fromJson(_m(j['bottomNav'])) : NavConf.defaults(),
+      topTabs: j['topTabs'] is Map ? TopTabsConf.fromJson(_m(j['topTabs'])) : TopTabsConf.defaults(),
       cards: CardConf.fromJson(_m(j['cards'])),
       sections: secs.isEmpty ? AppSettings.defaults().sections : secs,
       banners: _l(j['banners']).map((e) => PromoItem.fromJson(_m(e))).where((p) => p.image.isNotEmpty).toList(),

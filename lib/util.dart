@@ -1,3 +1,6 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 const _en = '0123456789';
@@ -42,4 +45,57 @@ Future<void> openLink(String url) async {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (_) {}
   }
+}
+
+const _months = ['জানুয়ারি', 'ফেব্রুয়ারি', 'মার্চ', 'এপ্রিল', 'মে', 'জুন', 'জুলাই', 'আগস্ট', 'সেপ্টেম্বর', 'অক্টোবর', 'নভেম্বর', 'ডিসেম্বর'];
+
+/// "২০ নভেম্বর ২০২৬, ০১:১৮ পিএম" (সার্ভারের দেওয়া সময়ই দেখায়, জোন বদলায় না)
+String bnDateTime(String iso) {
+  final d = DateTime.tryParse(iso);
+  if (d == null) return '';
+  final h12 = d.hour % 12 == 0 ? 12 : d.hour % 12;
+  final hh = h12.toString().padLeft(2, '0');
+  final mm = d.minute.toString().padLeft(2, '0');
+  return '${bn(d.day)} ${_months[d.month - 1]} ${bn(d.year)}, ${bn('$hh:$mm')} ${d.hour < 12 ? 'এএম' : 'পিএম'}';
+}
+
+/// অন্য অ্যাপে (ফেসবুক, হোয়াটসঅ্যাপ ইত্যাদি) খোলে; না পারলে false
+Future<bool> openExternal(String url) async {
+  try {
+    return await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  } catch (_) {
+    return false;
+  }
+}
+
+/// শেয়ার মাধ্যম: fb | messenger | whatsapp | x | linkedin | copy
+Future<void> shareTo(BuildContext context, String where, String title, String link) async {
+  final u = Uri.encodeComponent(link);
+  final t = Uri.encodeComponent(title);
+  bool ok = false;
+  switch (where) {
+    case 'fb':
+      ok = await openExternal('https://www.facebook.com/sharer/sharer.php?u=$u');
+      break;
+    case 'messenger':
+      ok = await openExternal('fb-messenger://share/?link=$u');
+      if (!ok) ok = await openExternal('https://www.facebook.com/sharer/sharer.php?u=$u');
+      break;
+    case 'whatsapp':
+      ok = await openExternal('https://wa.me/?text=$t%20$u');
+      break;
+    case 'x':
+      ok = await openExternal('https://twitter.com/intent/tweet?text=$t&url=$u');
+      break;
+    case 'linkedin':
+      ok = await openExternal('https://www.linkedin.com/sharing/share-offsite/?url=$u');
+      break;
+    case 'copy':
+      await Clipboard.setData(ClipboardData(text: link));
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('লিংক কপি হয়েছে'), duration: Duration(seconds: 2)));
+      }
+      return;
+  }
+  if (!ok) await Share.share('$title\n$link');
 }

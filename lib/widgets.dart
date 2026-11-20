@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'config.dart';
 import 'models.dart';
 import 'util.dart';
 import 'screens/post_screen.dart';
@@ -68,6 +69,7 @@ class NewsCard extends StatelessWidget {
       case 'overlay':
         return Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: BigNewsCard(item));
       case 'big':
+      case 'grid': // এককভাবে (যেমন তালিকা পেজে) গ্রিড কার্ড = বড় কার্ড; হোমে দুই কলামে সাজে
         return _bigCard(context, cc);
       case 'compact':
         return _compactCard(context, cc);
@@ -165,6 +167,108 @@ class NewsCard extends StatelessWidget {
           _meta(context, cc),
         ]),
       ),
+    );
+  }
+}
+
+/// ওয়েবসাইটের মতো দুই কলামের গ্রিডের একটি কার্ড: ওপরে ছবি, নিচে বোল্ড শিরোনাম
+class GridCard extends StatelessWidget {
+  final NewsItem item;
+  const GridCard(this.item, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final cc = AppSettings.current.cards;
+    final primary = Theme.of(context).colorScheme.primary;
+    final showCat = cc.showCategory && item.category != null;
+    return InkWell(
+      onTap: () => openPost(context, item.id),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(cc.radius),
+          child: AspectRatio(aspectRatio: 16 / 10, child: NetImage(item.image)),
+        ),
+        const SizedBox(height: 8),
+        Text(item.title,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700, height: 1.3)),
+        if (showCat || cc.showTime)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Row(children: [
+              if (showCat)
+                Flexible(
+                  child: Text(item.category!.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, color: primary, fontWeight: FontWeight.w600)),
+                ),
+              if (showCat && cc.showTime) const SizedBox(width: 8),
+              if (cc.showTime) Text(timeAgo(item.date), style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            ]),
+          ),
+      ]),
+    );
+  }
+}
+
+/// খবরগুলো দুই কলামের গ্রিডে সাজায়
+class NewsGrid extends StatelessWidget {
+  final List<NewsItem> items;
+  const NewsGrid(this.items, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <Widget>[];
+    for (var i = 0; i < items.length; i += 2) {
+      rows.add(Padding(
+        padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: GridCard(items[i])),
+          const SizedBox(width: 12),
+          Expanded(child: i + 1 < items.length ? GridCard(items[i + 1]) : const SizedBox.shrink()),
+        ]),
+      ));
+    }
+    return Column(children: rows);
+  }
+}
+
+/// প্রধান খবর (ওয়েবসাইট স্টাইল): পুরো প্রস্থের ছবি, নিচে বড় বোল্ড শিরোনাম
+class HeroBelowCard extends StatelessWidget {
+  final NewsItem item;
+  const HeroBelowCard(this.item, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final cc = AppSettings.current.cards;
+    final primary = Theme.of(context).colorScheme.primary;
+    final showCat = cc.showCategory && item.category != null;
+    return InkWell(
+      onTap: () => openPost(context, item.id),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        AspectRatio(aspectRatio: 16 / 10, child: NetImage(item.image)),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(item.title,
+                maxLines: 4,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w800, height: 1.3)),
+            if (showCat || cc.showTime)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Row(children: [
+                  if (showCat)
+                    Text(item.category!.name, style: TextStyle(fontSize: 13, color: primary, fontWeight: FontWeight.w600)),
+                  if (showCat && cc.showTime) const SizedBox(width: 8),
+                  if (cc.showTime) Text(timeAgo(item.date), style: const TextStyle(fontSize: 13, color: Colors.grey)),
+                ]),
+              ),
+          ]),
+        ),
+      ]),
     );
   }
 }
@@ -515,6 +619,72 @@ class _PagedListState<T> extends State<PagedList<T>> {
           return const SizedBox(height: 24);
         },
       ),
+    );
+  }
+}
+
+
+/// খবরের শেয়ার বাটন সারি (কালবেলার মতো গোল রঙিন বাটন)
+class ShareRow extends StatelessWidget {
+  final String title, link;
+  const ShareRow({super.key, required this.title, required this.link});
+
+  Widget _b(BuildContext context, Color bg, String where, Widget child) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 10),
+      child: Material(
+        color: bg,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: () => shareTo(context, where, title, link),
+          child: SizedBox(width: 42, height: 42, child: Center(child: child)),
+        ),
+      ),
+    );
+  }
+
+  Widget _t(String s, {double size = 18}) =>
+      Text(s, style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: size, height: 1));
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(children: [
+        _b(context, const Color(0xFF3B5998), 'fb', _t('f', size: 22)),
+        _b(context, const Color(0xFF0A7CFF), 'messenger', const Icon(Icons.messenger_outline, color: Colors.white, size: 21)),
+        _b(context, const Color(0xFF25D366), 'whatsapp', const Icon(Icons.call, color: Colors.white, size: 21)),
+        _b(context, Colors.black, 'x', _t('X', size: 17)),
+        _b(context, const Color(0xFF0077B5), 'linkedin', _t('in', size: 16)),
+        _b(context, const Color(0xFF1B5E20), 'copy', const Icon(Icons.copy_rounded, color: Colors.white, size: 19)),
+      ]),
+    );
+  }
+}
+
+/// নিচের ফুটার: সম্পাদক, প্রকাশক ও কপিরাইট (নাম ফাঁকা থাকলে ওই লাইন বাদ)
+class AppFooter extends StatelessWidget {
+  const AppFooter({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final style = TextStyle(fontSize: 14, height: 1.6, color: theme.colorScheme.onSurface.withAlpha(200));
+    final year = bn(DateTime.now().year);
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.onSurface.withAlpha(14),
+        border: Border(top: BorderSide(color: theme.dividerColor, width: 2)),
+      ),
+      child: Column(children: [
+        if (AppConfig.editor.isNotEmpty) Text('সম্পাদক : ${AppConfig.editor}', style: style, textAlign: TextAlign.center),
+        if (AppConfig.publisher.isNotEmpty) Text('প্রকাশক : ${AppConfig.publisher}', style: style, textAlign: TextAlign.center),
+        Text('স্বত্ব © ${AppConfig.siteName} $year', style: style, textAlign: TextAlign.center),
+      ]),
     );
   }
 }

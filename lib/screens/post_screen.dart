@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
-import 'package:share_plus/share_plus.dart';
 import '../api.dart';
+import '../dynamic_ui.dart';
 import '../models.dart';
 import '../util.dart';
 import '../widgets.dart';
+import 'category_screen.dart';
 
+/// খবরের পেজ (কালবেলা অ্যাপের মতো): ওপরে ব্যাক + লোগো + সার্চ/মেনু, তারপর ব্রেডক্রাম্ব,
+/// শিরোনাম, লেখক, সময়, শেয়ার বাটন, ছবি, খবর, আরও পড়ুন ও নিচে ফুটার।
 class PostScreen extends StatefulWidget {
   final int id;
   const PostScreen({super.key, required this.id});
@@ -16,35 +19,23 @@ class PostScreen extends StatefulWidget {
 
 class _PostScreenState extends State<PostScreen> {
   late Future<NewsDetail> _future = Api.post(widget.id);
-  double _fontSize = 18;
+  double _fontSize = 19;
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<NewsDetail>(
-      future: _future,
-      builder: (context, snap) {
-        final d = snap.data;
-        return Scaffold(
-          appBar: AppBar(
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.text_decrease),
-                onPressed: () => setState(() => _fontSize = (_fontSize - 1).clamp(14.0, 28.0).toDouble()),
-              ),
-              IconButton(
-                icon: const Icon(Icons.text_increase),
-                onPressed: () => setState(() => _fontSize = (_fontSize + 1).clamp(14.0, 28.0).toDouble()),
-              ),
-              if (d != null)
-                IconButton(
-                  icon: const Icon(Icons.share),
-                  onPressed: () => Share.share('${d.item.title}\n${d.item.link}'),
-                ),
-            ],
-          ),
-          body: _body(context, snap),
-        );
-      },
+    return Scaffold(
+      drawer: const AppDrawer(),
+      appBar: AppBar(
+        titleSpacing: 0,
+        centerTitle: false,
+        scrolledUnderElevation: 0,
+        title: const AppTitle(),
+        actions: headerActions(),
+      ),
+      body: FutureBuilder<NewsDetail>(
+        future: _future,
+        builder: (context, snap) => _body(context, snap),
+      ),
     );
   }
 
@@ -64,42 +55,93 @@ class _PostScreenState extends State<PostScreen> {
       );
     }
     final d = snap.data!;
-    final primary = Theme.of(context).colorScheme.primary;
+    final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
+    final grey = theme.colorScheme.onSurface.withAlpha(150);
+    final cat = d.item.category;
+    final when = bnDateTime(d.item.date);
 
     return ListView(children: [
-      if (d.item.image.isNotEmpty) AspectRatio(aspectRatio: 16 / 9, child: NetImage(d.item.image)),
+      const Divider(height: 1),
+      // ব্রেডক্রাম্ব: প্রচ্ছদ » ক্যাটাগরি
       Padding(
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (d.item.category != null)
-            Text(d.item.category!.name, style: TextStyle(color: primary, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 6),
-          Text(d.item.title, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, height: 1.35)),
-          const SizedBox(height: 12),
-          Row(children: [
-            if (d.reporterImage.isNotEmpty)
-              ClipOval(child: NetImage(d.reporterImage, width: 40, height: 40))
-            else
-              const CircleAvatar(radius: 20, child: Icon(Icons.person)),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                if (d.reporterName.isNotEmpty) Text(d.reporterName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                Text(
-                  [if (d.reporterDesignation.isNotEmpty) d.reporterDesignation, timeAgo(d.item.date)].join(' • '),
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ]),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+        child: Row(children: [
+          InkWell(
+            onTap: () => Navigator.of(context).popUntil((r) => r.isFirst),
+            child: const Text('প্রচ্ছদ', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+          ),
+          if (cat != null) ...[
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8),
+              child: Text('»', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             ),
-          ]),
+            Flexible(
+              child: InkWell(
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CategoryScreen(category: cat))),
+                child: Text(cat.name,
+                    maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: primary)),
+              ),
+            ),
+          ],
         ]),
       ),
+      // শিরোনাম
       Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+        child: Text(d.item.title, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, height: 1.35)),
+      ),
+      // লেখক
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+        child: Row(children: [
+          if (d.reporterImage.isNotEmpty)
+            ClipOval(child: NetImage(d.reporterImage, width: 32, height: 32))
+          else
+            Icon(Icons.person, size: 26, color: theme.colorScheme.onSurface),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              [if (d.reporterName.isNotEmpty) d.reporterName else s0(context), if (d.reporterDesignation.isNotEmpty) d.reporterDesignation].join(' • '),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            ),
+          ),
+        ]),
+      ),
+      // সময় + লেখার আকার
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
+        child: Row(children: [
+          Icon(Icons.unfold_more, size: 24, color: theme.colorScheme.onSurface),
+          const SizedBox(width: 6),
+          Expanded(child: Text('প্রকাশ : $when', style: TextStyle(fontSize: 15, color: grey))),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            tooltip: 'লেখা ছোট',
+            icon: const Icon(Icons.text_decrease),
+            onPressed: () => setState(() => _fontSize = (_fontSize - 1).clamp(14.0, 28.0).toDouble()),
+          ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            tooltip: 'লেখা বড়',
+            icon: const Icon(Icons.text_increase),
+            onPressed: () => setState(() => _fontSize = (_fontSize + 1).clamp(14.0, 28.0).toDouble()),
+          ),
+        ]),
+      ),
+      // শেয়ার বাটন
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+        child: ShareRow(title: d.item.title, link: d.item.link),
+      ),
+      if (d.item.image.isNotEmpty) AspectRatio(aspectRatio: 16 / 9, child: NetImage(d.item.image)),
+      const SizedBox(height: 10),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Html(
           data: d.content,
           style: {
-            'body': Style(fontSize: FontSize(_fontSize), lineHeight: const LineHeight(1.7), margin: Margins.zero, padding: HtmlPaddings.zero),
+            'body': Style(fontSize: FontSize(_fontSize), lineHeight: const LineHeight(1.75), margin: Margins.zero, padding: HtmlPaddings.zero),
             'img': Style(width: Width(100, Unit.percent), height: Height.auto()),
           },
           onLinkTap: (url, _, __) {
@@ -107,11 +149,19 @@ class _PostScreenState extends State<PostScreen> {
           },
         ),
       ),
+      const SizedBox(height: 8),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+        child: ShareRow(title: d.item.title, link: d.item.link),
+      ),
       if (d.related.isNotEmpty) ...[
         const SectionTitle('আরও পড়ুন'),
         for (final n in d.related) NewsCard(n),
       ],
-      const SizedBox(height: 32),
+      const AppFooter(),
     ]);
   }
+
+  /// লেখকের নাম না থাকলে সাইটের নাম
+  String s0(BuildContext context) => AppSettings.current.appName;
 }

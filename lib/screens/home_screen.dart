@@ -4,7 +4,6 @@ import '../dynamic_ui.dart';
 import '../models.dart';
 import '../widgets.dart';
 import 'category_screen.dart';
-import 'search_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -30,18 +29,8 @@ class _HomeScreenState extends State<HomeScreen> {
     return ValueListenableBuilder<AppSettings>(
       valueListenable: ConfigStore.notifier,
       builder: (context, s, _) => Scaffold(
-        drawer: s.menu.isEmpty ? null : const AppDrawer(),
-        appBar: AppBar(
-          title: const AppTitle(),
-          centerTitle: s.header.centered,
-          actions: [
-            if (s.header.search)
-              IconButton(
-                icon: const Icon(Icons.search),
-                onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SearchScreen())),
-              ),
-          ],
-        ),
+        drawer: const AppDrawer(),
+        appBar: _appBar(s),
         body: FutureBuilder<HomeData>(
           future: _future,
           builder: (context, snap) {
@@ -69,6 +58,17 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         ),
       ),
+    );
+  }
+
+  AppBar _appBar(AppSettings s) {
+    return AppBar(
+      title: const AppTitle(),
+      centerTitle: false,
+      automaticallyImplyLeading: false,
+      titleSpacing: 16,
+      bottom: s.topTabs.visible(s).isNotEmpty ? const TopTabBar() : null,
+      actions: headerActions(),
     );
   }
 
@@ -104,7 +104,7 @@ class _HomeScreenState extends State<HomeScreen> {
         case 'hero':
           if (ptr < items.length) {
             children.add(const SizedBox(height: 4));
-            children.add(BigNewsCard(items[ptr]));
+            children.add(s.style == 'big' ? HeroBelowCard(items[ptr]) : BigNewsCard(items[ptr]));
             ptr++;
           }
           break;
@@ -113,7 +113,12 @@ class _HomeScreenState extends State<HomeScreen> {
           ptr += s.count;
           if (part.isNotEmpty) {
             if (s.title.isNotEmpty) children.add(SectionTitle(s.title));
-            children.addAll(part.map((n) => NewsCard(n, style: s.style)));
+            final st = s.style.isEmpty ? AppSettings.current.cards.style : s.style;
+            if (st == 'grid') {
+              children.add(NewsGrid(part));
+            } else {
+              children.addAll(part.map((n) => NewsCard(n, style: s.style)));
+            }
           }
           break;
         case 'videos':
@@ -166,6 +171,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
     children.add(const SizedBox(height: 24));
+    children.add(const AppFooter());
 
     return ListView(physics: const AlwaysScrollableScrollPhysics(), children: children);
   }
@@ -187,6 +193,8 @@ class CategorySection extends StatelessWidget {
         }
         final list = snap.data ?? [];
         if (list.isEmpty) return const SizedBox.shrink();
+        final st = style.isEmpty ? AppSettings.current.cards.style : style;
+        if (st == 'grid') return NewsGrid(list);
         return Column(children: list.map((n) => NewsCard(n, style: style)).toList());
       },
     );

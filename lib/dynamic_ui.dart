@@ -1,13 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'api.dart';
 import 'models.dart';
 import 'util.dart';
 import 'widgets.dart';
 import 'screens/category_screen.dart';
+import 'screens/search_screen.dart';
 
 /// অ্যাডমিনের আইকন নাম => অ্যাপের আইকন (অ্যাপে আগে থেকে থাকা আইকনের তালিকা)
 IconData iconFor(String name) {
   switch (name) {
+    case 'bolt':
+      return Icons.flash_on_outlined;
+    case 'story':
+      return Icons.movie_filter_outlined;
+    case 'bell':
+      return Icons.notifications_none;
     case 'play':
       return Icons.play_circle_outline;
     case 'search':
@@ -31,7 +39,8 @@ IconData iconFor(String name) {
   }
 }
 
-/// হেডারের শিরোনাম: অ্যাপের নাম / লোগো / লোগো + নাম
+/// হেডারের লোগো (বামে)। অ্যাডমিনের লোগো থাকলে সেটি, না থাকলে অ্যাপের ভেতরের লোগো।
+/// অ্যাডমিনে "লোগো + নাম" বাছলে পাশে নামও দেখায়।
 class AppTitle extends StatelessWidget {
   const AppTitle({super.key});
 
@@ -40,12 +49,13 @@ class AppTitle extends StatelessWidget {
     final s = AppSettings.current;
     final dark = Theme.of(context).brightness == Brightness.dark;
     final logoUrl = (dark && s.logo.darkUrl.isNotEmpty) ? s.logo.darkUrl : s.logo.url;
-    final showLogo = (s.header.style == 'logo' || s.header.style == 'logo_title') && logoUrl.isNotEmpty;
-    final showName = s.header.style != 'logo' || !showLogo;
+    final Widget logo = logoUrl.isNotEmpty
+        ? NetImage(logoUrl, height: s.logo.height, fit: BoxFit.contain)
+        : Image.asset('assets/logo.png', height: s.logo.height, fit: BoxFit.contain);
+    if (s.header.style != 'logo_title') {
+      return Align(alignment: Alignment.centerLeft, child: logo);
+    }
     final name = Text(s.appName, style: const TextStyle(fontWeight: FontWeight.bold));
-    if (!showLogo) return name;
-    final logo = NetImage(logoUrl, height: s.logo.height, fit: BoxFit.contain);
-    if (!showName) return logo;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [logo, const SizedBox(width: 8), Flexible(child: name)],
@@ -53,7 +63,7 @@ class AppTitle extends StatelessWidget {
   }
 }
 
-/// সাইড মেনু (অ্যাডমিনের "সাইড মেনু" থেকে)
+/// সাইড মেনু (হ্যামবার্গার)। অ্যাডমিনের "সাইড মেনু" ফাঁকা থাকলে সব ক্যাটাগরি দেখায়।
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
 
@@ -81,6 +91,12 @@ class AppDrawer extends StatelessWidget {
     }
   }
 
+  void _openCat(BuildContext context, Category c) {
+    final nav = Navigator.of(context);
+    nav.pop();
+    nav.push(MaterialPageRoute(builder: (_) => CategoryScreen(category: c)));
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = AppSettings.current;
@@ -89,14 +105,38 @@ class AppDrawer extends StatelessWidget {
       child: ListView(padding: EdgeInsets.zero, children: [
         Container(
           color: primary,
-          padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + 24, 16, 20),
-          child: Text(s.appName, style: const TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.bold)),
+          padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + 20, 16, 18),
+          child: Row(children: [
+            ClipOval(child: Image.asset('assets/logo.png', width: 56, height: 56)),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(s.appName, style: const TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.bold)),
+            ),
+          ]),
         ),
-        for (final m in s.menu)
-          ListTile(
-            title: Text(m.label),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _open(context, m),
+        if (s.menu.isNotEmpty)
+          ...s.menu.map((m) => ListTile(
+                title: Text(m.label),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _open(context, m),
+              ))
+        else
+          FutureBuilder<HomeData>(
+            future: Api.home(),
+            builder: (context, snap) {
+              final cats = snap.data?.categories ?? const <Category>[];
+              if (snap.connectionState != ConnectionState.done) {
+                return const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()));
+              }
+              return Column(children: [
+                for (final c in cats)
+                  ListTile(
+                    title: Text(c.name),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _openCat(context, c),
+                  ),
+              ]);
+            },
           ),
       ]),
     );
@@ -234,4 +274,207 @@ Future<void> maybeShowPopup(BuildContext context) async {
       ),
     ),
   );
+}
+
+
+/// পেজের পরিচয়-চাবি (নিচের বার ও ওপরের ট্যাব একই পেজ ভাগ করে নেয়)।
+/// লিংক/টিভি/ই-পেপার অ্যাপের ভেতরে পেজ নয় (ব্রাউজারে খোলে), তাই null।
+String? pageKeyOf(String type, String target) {
+  switch (type) {
+    case 'home':
+    case 'videos':
+    case 'search':
+    case 'latest':
+    case 'notifications':
+    case 'story':
+    case 'epaper': // লিংক থাকলে ব্রাউজারে খোলে (Shell আগে দেখে), না থাকলে "শীঘ্রই আসছে" পেজ
+      return type;
+    case 'category':
+      return 'category:$target';
+    default:
+      return null;
+  }
+}
+
+/// লিংকধর্মী ট্যাবের ঠিকানা (না হলে null)
+String? externalUrlOf(AppSettings s, String type, String target) {
+  switch (type) {
+    case 'tv':
+      return s.liveTv.url;
+    case 'epaper':
+      return s.epaper.url;
+    case 'link':
+      return target;
+    default:
+      return null;
+  }
+}
+
+/// ওপরের ট্যাব বার আর Shell এর মধ্যে যোগাযোগ
+class TabNav {
+  static final ValueNotifier<String> current = ValueNotifier<String>('home');
+  static void Function(String type, String target)? onSelect;
+}
+
+/// হেডারের নিচের আইকন ট্যাব বার (অ্যাডমিন: "লোগো ও ওপরের ট্যাব")
+class TopTabBar extends StatelessWidget implements PreferredSizeWidget {
+  const TopTabBar({super.key});
+
+  @override
+  Size get preferredSize => Size.fromHeight(AppSettings.current.topTabs.showLabel ? 66 : 50);
+
+  @override
+  Widget build(BuildContext context) {
+    final s = AppSettings.current;
+    final conf = s.topTabs;
+    final items = conf.visible(s);
+    final theme = Theme.of(context);
+    final active = conf.active ?? theme.colorScheme.primary;
+    final idle = conf.fg ?? theme.colorScheme.onSurface.withAlpha(160);
+    return ValueListenableBuilder<String>(
+      valueListenable: TabNav.current,
+      builder: (context, cur, _) => Container(
+        height: preferredSize.height,
+        decoration: BoxDecoration(
+          color: conf.bg ?? theme.appBarTheme.backgroundColor ?? theme.scaffoldBackgroundColor,
+          border: Border(bottom: BorderSide(color: theme.dividerColor.withAlpha(90))),
+        ),
+        child: LayoutBuilder(builder: (context, c) {
+          final n = items.isEmpty ? 1 : items.length;
+          final w = (c.maxWidth / n) >= 56 ? c.maxWidth / n : 64.0;
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (final it in items) _tab(it, w, cur == pageKeyOf(it.type, it.target), active, idle, conf.showLabel),
+              ],
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _tab(TopTabItem it, double w, bool sel, Color active, Color idle, bool showLabel) {
+    final col = sel ? active : idle;
+    return InkWell(
+      onTap: () => TabNav.onSelect?.call(it.type, it.target),
+      child: SizedBox(
+        width: w,
+        height: preferredSize.height,
+        child: Column(
+          children: [
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    it.iconUrl.isNotEmpty
+                        ? NetImage(it.iconUrl, width: 26, height: 26, fit: BoxFit.contain)
+                        : Icon(iconFor(it.icon), size: 26, color: col),
+                    if (showLabel)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            it.label,
+                            maxLines: 1,
+                            style: TextStyle(fontSize: 11, color: col, fontWeight: sel ? FontWeight.bold : FontWeight.normal),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            Container(height: 3, color: sel ? col : Colors.transparent),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// কালবেলার মতো গোল ধূসর বাটন (সার্চ, হ্যামবার্গার)
+Widget hdrBtn(BuildContext context, IconData icon, String tip, VoidCallback onTap) {
+  final fg = AppSettings.current.header.fg ?? Theme.of(context).colorScheme.onSurface;
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 4),
+    child: Material(
+      color: fg.withAlpha(24),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Tooltip(message: tip, child: SizedBox(width: 40, height: 40, child: Icon(icon, size: 24, color: fg))),
+      ),
+    ),
+  );
+}
+
+/// হেডারের ডানে সার্চ ও হ্যামবার্গার মেনু বাটন (সবসময় ডানে, কালবেলা স্টাইল)।
+/// ড্রয়ারওয়ালা Scaffold এর ভেতরে থাকতে হবে।
+List<Widget> headerActions({bool search = true}) => [
+      if (search)
+        Builder(
+          builder: (c) => hdrBtn(c, Icons.search, 'সার্চ', () => Navigator.of(c).push(MaterialPageRoute(builder: (_) => const SearchScreen()))),
+        ),
+      Builder(builder: (c) => hdrBtn(c, Icons.menu, 'মেনু', () => Scaffold.of(c).openDrawer())),
+      const SizedBox(width: 8),
+    ];
+
+/// "শীঘ্রই আসছে" পেজ (স্টোরি / ই-পেপারে লিংক না থাকলে)
+class ComingSoonScreen extends StatelessWidget {
+  final bool inShell;
+  final String title;
+  const ComingSoonScreen({super.key, this.inShell = false, required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return ShellScaffold(
+      inShell: inShell,
+      title: Text(title),
+      body: Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.hourglass_empty, size: 56, color: Theme.of(context).disabledColor),
+          const SizedBox(height: 12),
+          Text('শীঘ্রই আসছে', style: Theme.of(context).textTheme.titleMedium),
+        ]),
+      ),
+    );
+  }
+}
+
+/// Shell এর ভেতরের পেজের Scaffold: ওপরের ট্যাব চালু থাকলে হেডারে লোগো + নিচে ট্যাব বার
+class ShellScaffold extends StatelessWidget {
+  final bool inShell;
+  final Widget? title;
+  final bool keepTitle;
+  final List<Widget>? actions;
+  final bool headerSearch;
+  final Widget body;
+  const ShellScaffold({super.key, required this.inShell, this.title, this.keepTitle = false, this.actions, this.headerSearch = true, required this.body});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<AppSettings>(
+      valueListenable: ConfigStore.notifier,
+      builder: (context, s, _) {
+        final top = inShell && s.topTabs.visible(s).isNotEmpty;
+        return Scaffold(
+          drawer: top ? const AppDrawer() : null,
+          appBar: AppBar(
+            title: (top && !keepTitle) ? const AppTitle() : title,
+            centerTitle: top ? false : true,
+            automaticallyImplyLeading: !top,
+            titleSpacing: top ? 16 : null,
+            actions: top ? [...?actions, ...headerActions(search: headerSearch)] : actions,
+            bottom: top ? const TopTabBar() : null,
+          ),
+          body: body,
+        );
+      },
+    );
+  }
 }
