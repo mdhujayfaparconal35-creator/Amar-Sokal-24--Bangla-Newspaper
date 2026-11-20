@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart';
+import 'config.dart';
 import 'models.dart';
 import 'util.dart';
 import 'widgets.dart';
@@ -39,6 +40,10 @@ IconData iconFor(String name) {
   }
 }
 
+/// হেডারের লোগোর উচ্চতা ও হেডার বারের উচ্চতা (বড় লোগোর জন্য)
+const double kLogoHeight = 54;
+const double kBarHeight = 68;
+
 /// হেডারের লোগো (বামে)। অ্যাডমিনের লোগো থাকলে সেটি, না থাকলে অ্যাপের ভেতরের লোগো।
 /// অ্যাডমিনে "লোগো + নাম" বাছলে পাশে নামও দেখায়।
 class AppTitle extends StatelessWidget {
@@ -50,8 +55,8 @@ class AppTitle extends StatelessWidget {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final logoUrl = (dark && s.logo.darkUrl.isNotEmpty) ? s.logo.darkUrl : s.logo.url;
     final Widget logo = logoUrl.isNotEmpty
-        ? NetImage(logoUrl, height: s.logo.height, fit: BoxFit.contain)
-        : Image.asset('assets/logo.png', height: s.logo.height, fit: BoxFit.contain);
+        ? NetImage(logoUrl, height: kLogoHeight, fit: BoxFit.contain)
+        : Image.asset('assets/logo.png', height: kLogoHeight, fit: BoxFit.contain);
     if (s.header.style != 'logo_title') {
       return Align(alignment: Alignment.centerLeft, child: logo);
     }
@@ -104,7 +109,9 @@ class AppDrawer extends StatelessWidget {
     return Drawer(
       child: ListView(padding: EdgeInsets.zero, children: [
         Container(
-          color: primary,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: [AppConfig.brand, Color.lerp(AppConfig.brand, Colors.white, 0.18)!]),
+          ),
           padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + 20, 16, 18),
           child: Row(children: [
             ClipOval(child: Image.asset('assets/logo.png', width: 56, height: 56)),
@@ -386,7 +393,14 @@ class TopTabBar extends StatelessWidget implements PreferredSizeWidget {
                 ),
               ),
             ),
-            Container(height: 3, color: sel ? col : Colors.transparent),
+            Container(
+              height: 4,
+              margin: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: BoxDecoration(
+                color: sel ? col : Colors.transparent,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+              ),
+            ),
           ],
         ),
       ),
@@ -467,6 +481,7 @@ class ShellScaffold extends StatelessWidget {
             title: (top && !keepTitle) ? const AppTitle() : title,
             centerTitle: top ? false : true,
             automaticallyImplyLeading: !top,
+            toolbarHeight: top ? kBarHeight : null,
             titleSpacing: top ? 16 : null,
             actions: top ? [...?actions, ...headerActions(search: headerSearch)] : actions,
             bottom: top ? const TopTabBar() : null,

@@ -66,6 +66,7 @@ class _HomeScreenState extends State<HomeScreen> {
       title: const AppTitle(),
       centerTitle: false,
       automaticallyImplyLeading: false,
+      toolbarHeight: kBarHeight,
       titleSpacing: 16,
       bottom: s.topTabs.visible(s).isNotEmpty ? const TopTabBar() : null,
       actions: headerActions(),
@@ -93,8 +94,12 @@ class _HomeScreenState extends State<HomeScreen> {
               separatorBuilder: (_, __) => const SizedBox(width: 8),
               itemBuilder: (_, i) {
                 final c = d.categories[i];
+                final pc = Theme.of(context).colorScheme.primary;
                 return ActionChip(
-                  label: Text(c.name),
+                  label: Text(c.name, style: TextStyle(color: pc, fontWeight: FontWeight.w600)),
+                  backgroundColor: pc.withAlpha(18),
+                  side: BorderSide(color: pc.withAlpha(60)),
+                  shape: const StadiumBorder(),
                   onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CategoryScreen(category: c))),
                 );
               },

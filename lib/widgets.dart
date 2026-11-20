@@ -44,11 +44,17 @@ class SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = Theme.of(context).colorScheme.primary;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 18, 12, 8),
+      padding: const EdgeInsets.fromLTRB(14, 22, 14, 10),
       child: Row(children: [
-        Container(width: 4, height: 20, color: c),
-        const SizedBox(width: 8),
-        Text(text, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+        Container(
+          width: 5,
+          height: 24,
+          decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(3)),
+        ),
+        const SizedBox(width: 10),
+        Text(text, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.bold)),
+        const SizedBox(width: 12),
+        Expanded(child: Container(height: 1.5, color: c.withAlpha(50))),
       ]),
     );
   }
@@ -87,10 +93,12 @@ class NewsCard extends StatelessWidget {
       child: Row(children: [
         if (showCat)
           Flexible(
-            child: Text(item.category!.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 12, color: primary, fontWeight: FontWeight.w600)),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(color: primary.withAlpha(24), borderRadius: BorderRadius.circular(20)),
+              child: Text(item.category!.name,
+                  maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: primary, fontWeight: FontWeight.w700)),
+            ),
           ),
         if (showCat && cc.showTime) const SizedBox(width: 8),
         if (cc.showTime) Text(timeAgo(item.date), style: const TextStyle(fontSize: 12, color: Colors.grey)),
@@ -114,8 +122,8 @@ class NewsCard extends StatelessWidget {
 
   Widget _smallCard(BuildContext context, CardConf cc) {
     final image = ClipRRect(
-      borderRadius: BorderRadius.circular(cc.radius),
-      child: NetImage(item.image, width: 112, height: 78),
+      borderRadius: BorderRadius.circular(cc.radius + 4),
+      child: NetImage(item.image, width: 118, height: 82),
     );
     final text = Expanded(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -126,8 +134,10 @@ class NewsCard extends StatelessWidget {
     );
     return InkWell(
       onTap: () => openPost(context, item.id),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.withAlpha(50)))),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: cc.imageRight ? [text, const SizedBox(width: 12), image] : [image, const SizedBox(width: 12), text],
@@ -184,15 +194,21 @@ class GridCard extends StatelessWidget {
     return InkWell(
       onTap: () => openPost(context, item.id),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(cc.radius),
-          child: AspectRatio(aspectRatio: 16 / 10, child: NetImage(item.image)),
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(cc.radius + 4),
+            boxShadow: [BoxShadow(color: Colors.black.withAlpha(40), blurRadius: 8, offset: const Offset(0, 3))],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(cc.radius + 4),
+            child: AspectRatio(aspectRatio: 16 / 10, child: NetImage(item.image)),
+          ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         Text(item.title,
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700, height: 1.3)),
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, height: 1.3)),
         if (showCat || cc.showTime)
           Padding(
             padding: const EdgeInsets.only(top: 4),
@@ -280,7 +296,7 @@ class BigNewsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final radius = AppSettings.current.theme.radius;
+    final radius = AppSettings.current.theme.radius + 6;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: GestureDetector(
@@ -296,8 +312,8 @@ class BigNewsCard extends StatelessWidget {
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, Colors.black87],
-                    stops: [0.45, 1],
+                    colors: [Colors.transparent, Colors.black54, Color(0xF2000000)],
+                    stops: [0.35, 0.7, 1],
                   ),
                 ),
               ),
@@ -308,18 +324,18 @@ class BigNewsCard extends StatelessWidget {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                   if (item.category != null)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                       decoration: BoxDecoration(
                         color: Theme.of(context).colorScheme.primary,
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(20),
                       ),
-                      child: Text(item.category!.name, style: const TextStyle(color: Colors.white, fontSize: 12)),
+                      child: Text(item.category!.name, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
                     ),
                   const SizedBox(height: 6),
                   Text(item.title,
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, height: 1.3)),
+                      style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, height: 1.3)),
                 ]),
               ),
             ]),
@@ -669,18 +685,16 @@ class AppFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final style = TextStyle(fontSize: 14, height: 1.6, color: theme.colorScheme.onSurface.withAlpha(200));
+    const style = TextStyle(fontSize: 14.5, height: 1.7, color: Colors.white70);
     final year = bn(DateTime.now().year);
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(top: 12),
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.onSurface.withAlpha(14),
-        border: Border(top: BorderSide(color: theme.colorScheme.primary, width: 3)),
-      ),
+      margin: const EdgeInsets.only(top: 20),
+      padding: const EdgeInsets.fromLTRB(16, 22, 16, 26),
+      decoration: const BoxDecoration(color: AppConfig.brand),
       child: Column(children: [
+        ClipOval(child: Image.asset('assets/logo.png', width: 54, height: 54)),
+        const SizedBox(height: 10),
         if (AppConfig.editorPublisher.isNotEmpty)
           Text('সম্পাদক ও প্রকাশক : ${AppConfig.editorPublisher}', style: style, textAlign: TextAlign.center),
         Text('স্বত্ব © ${AppConfig.siteName} $year', style: style, textAlign: TextAlign.center),

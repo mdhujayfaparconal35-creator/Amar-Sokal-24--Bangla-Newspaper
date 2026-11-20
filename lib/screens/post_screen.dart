@@ -19,13 +19,14 @@ class PostScreen extends StatefulWidget {
 
 class _PostScreenState extends State<PostScreen> {
   late Future<NewsDetail> _future = Api.post(widget.id);
-  double _fontSize = 19;
+  double _fontSize = 21;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       drawer: const AppDrawer(),
       appBar: AppBar(
+        toolbarHeight: kBarHeight,
         titleSpacing: 0,
         centerTitle: false,
         scrolledUnderElevation: 0,
@@ -79,8 +80,12 @@ class _PostScreenState extends State<PostScreen> {
             Flexible(
               child: InkWell(
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CategoryScreen(category: cat))),
-                child: Text(cat.name,
-                    maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: primary)),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+                  decoration: BoxDecoration(color: primary.withAlpha(24), borderRadius: BorderRadius.circular(20)),
+                  child: Text(cat.name,
+                      maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: primary)),
+                ),
               ),
             ),
           ],
@@ -89,7 +94,7 @@ class _PostScreenState extends State<PostScreen> {
       // শিরোনাম
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-        child: Text(d.item.title, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, height: 1.35)),
+        child: Text(d.item.title, style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w700, height: 1.3)),
       ),
       // লেখক
       Padding(
@@ -134,15 +139,35 @@ class _PostScreenState extends State<PostScreen> {
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
         child: ShareRow(title: d.item.title, link: d.item.link),
       ),
-      if (d.item.image.isNotEmpty) AspectRatio(aspectRatio: 16 / 9, child: NetImage(d.item.image)),
+      if (d.item.image.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: ClipRRect(borderRadius: BorderRadius.circular(14), child: AspectRatio(aspectRatio: 16 / 9, child: NetImage(d.item.image))),
+        ),
       const SizedBox(height: 10),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Html(
           data: d.content,
           style: {
-            'body': Style(fontSize: FontSize(_fontSize), lineHeight: const LineHeight(1.75), margin: Margins.zero, padding: HtmlPaddings.zero),
-            'img': Style(width: Width(100, Unit.percent), height: Height.auto()),
+            'body': Style(
+              fontFamily: 'Kalpurush',
+              fontSize: FontSize(_fontSize),
+              lineHeight: const LineHeight(1.7),
+              margin: Margins.zero,
+              padding: HtmlPaddings.zero,
+            ),
+            'p': Style(margin: Margins.only(bottom: 16)),
+            'a': Style(color: primary, textDecoration: TextDecoration.none),
+            'img': Style(width: Width(100, Unit.percent), height: Height.auto(), margin: Margins.only(top: 6, bottom: 6)),
+            'blockquote': Style(
+              margin: Margins.only(left: 4, top: 8, bottom: 16),
+              padding: HtmlPaddings.only(left: 14, top: 4, bottom: 4),
+              border: Border(left: BorderSide(color: primary, width: 4)),
+              fontStyle: FontStyle.italic,
+            ),
+            'h2': Style(fontSize: FontSize(_fontSize + 4), margin: Margins.only(top: 8, bottom: 12)),
+            'h3': Style(fontSize: FontSize(_fontSize + 2), margin: Margins.only(top: 8, bottom: 10)),
           },
           onLinkTap: (url, _, __) {
             if (url != null) openLink(url);

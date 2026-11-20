@@ -41,7 +41,7 @@ ThemeData _buildTheme(AppSettings s, Brightness b) {
     surface: bg,
     onSurface: fg,
   );
-  final base = ThemeData(useMaterial3: true, colorScheme: scheme, brightness: b);
+  final base = ThemeData(useMaterial3: true, colorScheme: scheme, brightness: b, fontFamily: 'Kalpurush');
   return base.copyWith(
     scaffoldBackgroundColor: bg,
     cardColor: card,
@@ -53,7 +53,9 @@ ThemeData _buildTheme(AppSettings s, Brightness b) {
       surfaceTintColor: Colors.transparent,
       centerTitle: false,
       scrolledUnderElevation: 0,
+      shape: Border(bottom: BorderSide(color: fg.withAlpha(28))),
     ),
+    dividerTheme: DividerThemeData(color: fg.withAlpha(30), space: 1),
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: s.nav.bg ?? bg,
       surfaceTintColor: Colors.transparent,
