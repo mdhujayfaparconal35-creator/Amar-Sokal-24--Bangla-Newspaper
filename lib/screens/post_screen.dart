@@ -25,21 +25,7 @@ class _PostScreenState extends State<PostScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       drawer: const AppDrawer(),
-      appBar: AppBar(
-        toolbarHeight: kBarHeight,
-        automaticallyImplyLeading: false,
-        leadingWidth: 46,
-        leading: IconButton(
-          tooltip: 'পেছনে',
-          icon: const Icon(Icons.arrow_back, size: 26),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        titleSpacing: 2,
-        centerTitle: false,
-        scrolledUnderElevation: 0,
-        title: const AppTitle(),
-        actions: headerActions(),
-      ),
+      appBar: appHeader(context, back: true),
       body: FutureBuilder<NewsDetail>(
         future: _future,
         builder: (context, snap) => _body(context, snap),

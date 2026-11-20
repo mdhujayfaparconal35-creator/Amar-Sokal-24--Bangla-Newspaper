@@ -116,10 +116,14 @@ class NewsCard extends StatelessWidget {
     );
   }
 
-  Widget _title({double size = 16, int lines = 3}) => Text(item.title,
-      maxLines: lines,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(fontSize: size, fontWeight: FontWeight.w600, height: 1.35));
+  Widget _title({double size = 16, int lines = 3}) => SizedBox(
+        width: double.infinity,
+        child: Text(item.title,
+            textAlign: TextAlign.start,
+            maxLines: lines,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: size, fontWeight: FontWeight.w600, height: 1.35)),
+      );
 
   Widget _smallCard(BuildContext context, CardConf cc) {
     final image = ClipRRect(
@@ -206,10 +210,14 @@ class GridCard extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        Text(item.title,
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, height: 1.3)),
+        SizedBox(
+          width: double.infinity,
+          child: Text(item.title,
+              textAlign: TextAlign.start,
+              maxLines: 4,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, height: 1.35)),
+        ),
         if (showCat || cc.showTime)
           Padding(
             padding: const EdgeInsets.only(top: 4),
@@ -269,10 +277,12 @@ class HeroBelowCard extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(item.title,
-                maxLines: 4,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w800, height: 1.3)),
+            SizedBox(
+              width: double.infinity,
+              child: Text(item.title,
+                  textAlign: TextAlign.start,
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, height: 1.4)),
+            ),
             if (showCat || cc.showTime)
               Padding(
                 padding: const EdgeInsets.only(top: 6),
@@ -333,10 +343,14 @@ class BigNewsCard extends StatelessWidget {
                       child: Text(item.category!.name, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
                     ),
                   const SizedBox(height: 6),
-                  Text(item.title,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, height: 1.3)),
+                  SizedBox(
+                    width: double.infinity,
+                    child: Text(item.title,
+                        textAlign: TextAlign.start,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, height: 1.35)),
+                  ),
                 ]),
               ),
             ]),
@@ -696,8 +710,8 @@ class AppLogo extends StatelessWidget {
 }
 
 class _Partner {
-  final String asset, url;
-  const _Partner(this.asset, this.url);
+  final String asset, url, title;
+  const _Partner(this.asset, this.url, [this.title = '']);
 }
 
 const List<_Partner> _partners = [
@@ -705,7 +719,7 @@ const List<_Partner> _partners = [
   _Partner('assets/partners/p2.png', 'https://astechnologiesltd.com'),
   _Partner('assets/partners/p3.png', ''),
   _Partner('assets/partners/p4.png', 'https://shop.amarsokal24.com'),
-  _Partner('assets/partners/p5.png', 'https://epaper.amarsokal24.com'),
+  _Partner('assets/partners/p5.png', 'https://epaper.amarsokal24.com', 'ই-পেপার'),
   _Partner('assets/partners/p6.png', 'https://smm.astechnologiesltd.com'),
   _Partner('assets/partners/p7.png', 'https://en.amarsokal24.com'),
   _Partner('assets/partners/p8.png', ''),
@@ -715,7 +729,7 @@ const List<_Partner> _partners = [
 class PartnersSection extends StatelessWidget {
   const PartnersSection({super.key});
 
-  Widget _card(_Partner p) {
+  Widget _card(BuildContext context, _Partner p) {
     return Material(
       color: Colors.white,
       shape: RoundedRectangleBorder(
@@ -724,7 +738,7 @@ class PartnersSection extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: p.url.isEmpty ? null : () => openLink(p.url),
+        onTap: p.url.isEmpty ? null : () => openInApp(context, p.url, title: p.title),
         child: Padding(
           padding: const EdgeInsets.all(6),
           child: AspectRatio(aspectRatio: 3.4, child: Image.asset(p.asset, fit: BoxFit.contain)),
@@ -741,9 +755,9 @@ class PartnersSection extends StatelessWidget {
       rows.add(Padding(
         padding: const EdgeInsets.only(bottom: 10),
         child: Row(children: [
-          Expanded(child: _card(_partners[i])),
+          Expanded(child: _card(context, _partners[i])),
           const SizedBox(width: 10),
-          Expanded(child: i + 1 < _partners.length ? _card(_partners[i + 1]) : const SizedBox.shrink()),
+          Expanded(child: i + 1 < _partners.length ? _card(context, _partners[i + 1]) : const SizedBox.shrink()),
         ]),
       ));
     }

@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:ui' as ui;
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart';
@@ -44,6 +47,132 @@ IconData iconFor(String name) {
 const double kLogoHeight = 54;
 const double kBarHeight = 68;
 
+class _LogoCrop {
+  final ui.Image image;
+  final Rect src;
+  const _LogoCrop(this.image, this.src);
+}
+
+final Map<String, _LogoCrop?> _logoDone = {};
+final Map<String, Future<_LogoCrop?>> _logoLoading = {};
+
+/// লোগোর বামে-ডানে ফাঁকা (স্বচ্ছ/সাদা) অংশ মেপে বাদ দেয়, যাতে লোগো একদম বাম ঘেঁষে বসে
+Future<_LogoCrop?> _loadLogoCrop(ImageProvider provider) async {
+  try {
+    final done = Completer<ui.Image>();
+    final stream = provider.resolve(ImageConfiguration.empty);
+    late ImageStreamListener l;
+    l = ImageStreamListener((info, _) {
+      if (!done.isCompleted) done.complete(info.image.clone());
+      stream.removeListener(l);
+    }, onError: (e, _) {
+      if (!done.isCompleted) done.completeError(e);
+      stream.removeListener(l);
+    });
+    stream.addListener(l);
+    final img = await done.future.timeout(const Duration(seconds: 20));
+    final bd = await img.toByteData(format: ui.ImageByteFormat.rawRgba);
+    if (bd == null) return null;
+    final w = img.width, h = img.height;
+    var minX = w, maxX = -1;
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        final o = (y * w + x) * 4;
+        final r = bd.getUint8(o), g = bd.getUint8(o + 1), b = bd.getUint8(o + 2), a = bd.getUint8(o + 3);
+        final blank = a < 16 || (r > 245 && g > 245 && b > 245);
+        if (!blank) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+        }
+      }
+    }
+    if (maxX < minX || (maxX - minX) < w * 0.1) return _LogoCrop(img, Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()));
+    final l0 = (minX - 1).clamp(0, w - 1);
+    final r0 = (maxX + 2).clamp(1, w);
+    return _LogoCrop(img, Rect.fromLTRB(l0.toDouble(), 0, r0.toDouble(), h.toDouble()));
+  } catch (_) {
+    return null;
+  }
+}
+
+class _CropPainter extends CustomPainter {
+  final _LogoCrop c;
+  const _CropPainter(this.c);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawImageRect(c.image, c.src, Offset.zero & size, Paint()..filterQuality = FilterQuality.medium..isAntiAlias = true);
+  }
+
+  @override
+  bool shouldRepaint(_CropPainter old) => old.c != c;
+}
+
+/// হেডারের লোগো: ফাঁকা জায়গা কেটে বাম ঘেঁষে দেখায় (না পারলে সাধারণ লোগো)
+class HeaderLogo extends StatefulWidget {
+  final double height;
+  const HeaderLogo({super.key, required this.height});
+
+  @override
+  State<HeaderLogo> createState() => _HeaderLogoState();
+}
+
+class _HeaderLogoState extends State<HeaderLogo> {
+  String _key = '';
+
+  ImageProvider _provider(String url) =>
+      url.isNotEmpty ? CachedNetworkImageProvider(url) as ImageProvider : const AssetImage('assets/logo.png');
+
+  void _start(String key, ImageProvider p) {
+    if (_logoDone.containsKey(key) || _logoLoading.containsKey(key)) return;
+    _logoLoading[key] = _loadLogoCrop(p).then((v) {
+      _logoDone[key] = v;
+      _logoLoading.remove(key);
+      if (mounted) setState(() {});
+      return v;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = AppSettings.current;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final url = (dark && s.logo.darkUrl.isNotEmpty) ? s.logo.darkUrl : s.logo.url;
+    _key = url.isEmpty ? 'asset' : url;
+    _start(_key, _provider(url));
+    if (!_logoDone.containsKey(_key)) return SizedBox(height: widget.height);
+    final c = _logoDone[_key];
+    if (c == null) return AppLogo(height: widget.height);
+    final w = widget.height * c.src.width / c.src.height;
+    return SizedBox(width: w, height: widget.height, child: CustomPaint(painter: _CropPainter(c)));
+  }
+}
+
+/// ঢোকা পেজের (নিউজ, ভিডিও, ওয়েব পেজ) হেডার: লোগো + সার্চ/মেনু + নিচে আইকন ট্যাব বার।
+/// ড্রয়ারওয়ালা Scaffold এর ভেতরে ব্যবহার করতে হবে।
+AppBar appHeader(BuildContext context, {bool back = false, bool search = true}) {
+  final s = AppSettings.current;
+  final hasTabs = s.topTabs.visible(s).isNotEmpty;
+  return AppBar(
+    toolbarHeight: kBarHeight,
+    automaticallyImplyLeading: false,
+    leadingWidth: back ? 44 : null,
+    leading: back
+        ? IconButton(
+            tooltip: 'পেছনে',
+            icon: const Icon(Icons.arrow_back, size: 26),
+            onPressed: () => Navigator.of(context).maybePop(),
+          )
+        : null,
+    titleSpacing: back ? 0 : 4,
+    centerTitle: false,
+    scrolledUnderElevation: 0,
+    title: const AppTitle(),
+    actions: headerActions(search: search),
+    bottom: hasTabs ? const TopTabBar() : null,
+  );
+}
+
 /// হেডারের লোগো (বামে)। অ্যাডমিনের লোগো থাকলে সেটি, না থাকলে অ্যাপের ভেতরের লোগো।
 /// অ্যাডমিনে "লোগো + নাম" বাছলে পাশে নামও দেখায়।
 class AppTitle extends StatelessWidget {
@@ -52,7 +181,7 @@ class AppTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = AppSettings.current;
-    const logo = AppLogo(height: kLogoHeight);
+    const logo = HeaderLogo(height: kLogoHeight);
     if (s.header.style != 'logo_title') {
       return const Align(alignment: Alignment.centerLeft, child: logo);
     }
@@ -347,7 +476,7 @@ class TopTabBar extends StatelessWidget implements PreferredSizeWidget {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                for (final it in items) _tab(it, w, cur == pageKeyOf(it.type, it.target), active, idle, conf.showLabel),
+                for (final it in items) _tab(context, it, w, cur == pageKeyOf(it.type, it.target), active, idle, conf.showLabel),
               ],
             ),
           );
@@ -356,10 +485,14 @@ class TopTabBar extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
-  Widget _tab(TopTabItem it, double w, bool sel, Color active, Color idle, bool showLabel) {
+  Widget _tab(BuildContext context, TopTabItem it, double w, bool sel, Color active, Color idle, bool showLabel) {
     final col = sel ? active : idle;
     return InkWell(
-      onTap: () => TabNav.onSelect?.call(it.type, it.target),
+      onTap: () {
+        // নিউজ/ভিডিও/ওয়েব পেজের ভেতর থেকে ট্যাপ করলে আগে মূল পেজে ফেরে, তারপর ট্যাব বদলায়
+        Navigator.of(context).popUntil((r) => r.isFirst);
+        TabNav.onSelect?.call(it.type, it.target);
+      },
       child: SizedBox(
         width: w,
         height: preferredSize.height,
@@ -470,15 +603,25 @@ class ShellScaffold extends StatelessWidget {
     return ValueListenableBuilder<AppSettings>(
       valueListenable: ConfigStore.notifier,
       builder: (context, s, _) {
-        final top = inShell && s.topTabs.visible(s).isNotEmpty;
+        // ট্যাব থাকলে ভেতরে ঢুকলেও (ক্যাটাগরি, সার্চ) হেডার আইকনসহ থাকে; ভেতরের পেজে ব্যাক বাটন যোগ হয়
+        final top = s.topTabs.visible(s).isNotEmpty;
+        final pushed = !inShell;
         return Scaffold(
           drawer: top ? const AppDrawer() : null,
           appBar: AppBar(
             title: (top && !keepTitle) ? const AppTitle() : title,
             centerTitle: top ? false : true,
             automaticallyImplyLeading: !top,
+            leadingWidth: top && pushed ? 44 : null,
+            leading: top && pushed
+                ? IconButton(
+                    tooltip: 'পেছনে',
+                    icon: const Icon(Icons.arrow_back, size: 26),
+                    onPressed: () => Navigator.of(context).maybePop(),
+                  )
+                : null,
             toolbarHeight: top ? kBarHeight : null,
-            titleSpacing: top ? 10 : null,
+            titleSpacing: top ? (pushed ? 0 : 4) : null,
             actions: top ? [...?actions, ...headerActions(search: headerSearch)] : actions,
             bottom: top ? const TopTabBar() : null,
           ),

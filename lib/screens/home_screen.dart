@@ -67,7 +67,7 @@ class _HomeScreenState extends State<HomeScreen> {
       centerTitle: false,
       automaticallyImplyLeading: false,
       toolbarHeight: kBarHeight,
-      titleSpacing: 10,
+      titleSpacing: 4,
       bottom: s.topTabs.visible(s).isNotEmpty ? const TopTabBar() : null,
       actions: headerActions(),
     );

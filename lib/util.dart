@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'screens/web_page_screen.dart';
 
 const _en = '0123456789';
 const _bn = '০১২৩৪৫৬৭৮৯';
@@ -45,6 +46,13 @@ Future<void> openLink(String url) async {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (_) {}
   }
+}
+
+/// লিংক অ্যাপের ভেতরেই খোলে (অ্যাপের নিজস্ব হেডার সহ; ওয়েবসাইটের হেডার-ফুটার লুকানো)
+void openInApp(BuildContext context, String url, {String title = ''}) {
+  final uri = Uri.tryParse(url);
+  if (uri == null || (uri.scheme != 'https' && uri.scheme != 'http')) return;
+  Navigator.of(context).push(MaterialPageRoute(builder: (_) => WebPageScreen(url: url, title: title)));
 }
 
 const _months = ['জানুয়ারি', 'ফেব্রুয়ারি', 'মার্চ', 'এপ্রিল', 'মে', 'জুন', 'জুলাই', 'আগস্ট', 'সেপ্টেম্বর', 'অক্টোবর', 'নভেম্বর', 'ডিসেম্বর'];
