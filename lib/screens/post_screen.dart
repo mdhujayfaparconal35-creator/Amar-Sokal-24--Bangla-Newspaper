@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 import '../api.dart';
 import '../dynamic_ui.dart';
+import '../fake_stats.dart';
 import '../models.dart';
 import '../util.dart';
 import '../widgets.dart';
@@ -21,6 +22,27 @@ class _PostScreenState extends State<PostScreen> {
   late Future<NewsDetail> _future = Api.post(widget.id);
   double _fontSize = 20;
   final ValueNotifier<double> _progress = ValueNotifier<double>(0);
+
+  @override
+  void initState() {
+    super.initState();
+    FakeStats.bump(widget.id); // প্রতিবার পড়লে ভিউ ৭ করে বাড়ে
+  }
+
+  /// খবরের লেখাকে ৩য় অনুচ্ছেদের পর দুই ভাগ করে (মাঝখানে বিজ্ঞাপন বসাতে); ছোট লেখা ভাগ হয় না
+  static List<String> _splitHtml(String html) {
+    final low = html.toLowerCase();
+    var idx = -1, count = 0, from = 0;
+    while (true) {
+      final i = low.indexOf('</p>', from);
+      if (i < 0) break;
+      count++;
+      if (count == 3) idx = i + 4;
+      from = i + 4;
+    }
+    if (count < 6 || idx < 0) return [html];
+    return [html.substring(0, idx), html.substring(idx)];
+  }
 
   @override
   void dispose() {
@@ -62,6 +84,9 @@ class _PostScreenState extends State<PostScreen> {
     final cat = d.item.category;
     final when = bnDateTime(d.item.date);
 
+    final parts = _splitHtml(d.content);
+    final views = FakeStats.views(d.item.id);
+    final shares = FakeStats.shares(d.item.id);
     final list = ListView(children: [
       const Divider(height: 1),
       // ব্রেডক্রাম্ব: প্রচ্ছদ » ক্যাটাগরি
@@ -134,11 +159,25 @@ class _PostScreenState extends State<PostScreen> {
           ),
         ]),
       ),
+      // কতজন পড়েছেন / শেয়ার
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+        child: Row(children: [
+          Icon(Icons.visibility_outlined, size: 18, color: grey),
+          const SizedBox(width: 5),
+          Text('${FakeStats.fmt(views)} জন পড়েছেন', style: TextStyle(fontSize: 14.5, color: grey, fontWeight: FontWeight.w600)),
+          const SizedBox(width: 18),
+          Icon(Icons.share_outlined, size: 17, color: grey),
+          const SizedBox(width: 5),
+          Text('${FakeStats.fmt(shares)} শেয়ার', style: TextStyle(fontSize: 14.5, color: grey, fontWeight: FontWeight.w600)),
+        ]),
+      ),
       // শেয়ার বাটন
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
         child: ShareRow(title: d.item.title, link: d.item.link),
       ),
+      const AdSlot(slot: 'post', index: 0),
       if (d.item.image.isNotEmpty)
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -147,8 +186,11 @@ class _PostScreenState extends State<PostScreen> {
       const SizedBox(height: 10),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Html(
-          data: d.content,
+        child: Column(children: [
+          for (var pi = 0; pi < parts.length; pi++) ...[
+            if (pi > 0) const AdSlot(slot: 'post', index: 1),
+            Html(
+          data: parts[pi],
           style: {
             'body': Style(
               fontFamily: 'Kalpurush',
@@ -183,7 +225,10 @@ class _PostScreenState extends State<PostScreen> {
             if (url != null) openLink(url);
           },
         ),
+          ],
+        ]),
       ),
+      const AdSlot(slot: 'post', index: 2),
       const SizedBox(height: 8),
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),

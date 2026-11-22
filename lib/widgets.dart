@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'fake_stats.dart';
 import 'config.dart';
 import 'screens/video_player_screen.dart';
 import 'models.dart';
@@ -190,12 +191,13 @@ class NewsCard extends StatelessWidget {
   Widget _meta(BuildContext context, CardConf cc) {
     final primary = Theme.of(context).colorScheme.primary;
     final showCat = cc.showCategory && item.category != null;
-    if (!showCat && !cc.showTime) return const SizedBox.shrink();
+    const grey = TextStyle(fontSize: 12, color: Colors.grey);
     return Padding(
       padding: const EdgeInsets.only(top: 6),
-      child: Row(children: [
+      child: Wrap(crossAxisAlignment: WrapCrossAlignment.center, spacing: 8, runSpacing: 4, children: [
         if (showCat)
-          Flexible(
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 150),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(color: primary.withAlpha(26), borderRadius: BorderRadius.circular(20), border: Border.all(color: primary.withAlpha(50))),
@@ -203,12 +205,17 @@ class NewsCard extends StatelessWidget {
                   maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: primary, fontWeight: FontWeight.w700)),
             ),
           ),
-        if (showCat && cc.showTime) const SizedBox(width: 8),
-        if (cc.showTime) ...[
-          const Icon(Icons.access_time, size: 13, color: Colors.grey),
+        if (cc.showTime)
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.access_time, size: 13, color: Colors.grey),
+            const SizedBox(width: 3),
+            Text(timeAgo(item.date), style: grey),
+          ]),
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.visibility_outlined, size: 14, color: Colors.grey),
           const SizedBox(width: 3),
-          Text(timeAgo(item.date), style: const TextStyle(fontSize: 12, color: Colors.grey)),
-        ],
+          Text(FakeStats.fmt(FakeStats.views(item.id)), style: grey),
+        ]),
       ]),
     );
   }
@@ -523,6 +530,106 @@ class PromoImage extends StatelessWidget {
   }
 }
 
+/// হোমের প্রধান খবর: ৫টি খবর ৩ সেকেন্ড পর পর স্লাইড হয়, শেষে আবার প্রথম থেকে ঘুরতে থাকে
+class HeroSlider extends StatefulWidget {
+  final List<NewsItem> items;
+  const HeroSlider(this.items, {super.key});
+
+  @override
+  State<HeroSlider> createState() => _HeroSliderState();
+}
+
+class _HeroSliderState extends State<HeroSlider> {
+  final PageController _pc = PageController();
+  Timer? _t;
+  int _cur = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _start();
+  }
+
+  void _start() {
+    _t?.cancel();
+    if (widget.items.length < 2) return;
+    _t = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (_pc.hasClients) _pc.nextPage(duration: const Duration(milliseconds: 600), curve: Curves.easeInOutCubic);
+    });
+  }
+
+  @override
+  void dispose() {
+    _t?.cancel();
+    _pc.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final n = widget.items.length;
+    if (n == 0) return const SizedBox.shrink();
+    final primary = Theme.of(context).colorScheme.primary;
+    return LayoutBuilder(builder: (context, c) {
+      final cardH = (c.maxWidth - 24) * 10 / 16;
+      return Listener(
+        onPointerDown: (_) => _t?.cancel(),
+        onPointerUp: (_) => _start(),
+        onPointerCancel: (_) => _start(),
+        child: SizedBox(
+          height: cardH + 18,
+          child: Stack(children: [
+            PageView.builder(
+              controller: _pc,
+              onPageChanged: (i) => setState(() => _cur = i % n),
+              itemBuilder: (_, i) => Padding(
+                padding: const EdgeInsets.only(top: 4, bottom: 14),
+                child: BigNewsCard(widget.items[i % n]),
+              ),
+            ),
+            if (n > 1)
+              Positioned(
+                top: 18,
+                right: 26,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  decoration: BoxDecoration(color: Colors.black38, borderRadius: BorderRadius.circular(12)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    for (var i = 0; i < n; i++)
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        margin: const EdgeInsets.symmetric(horizontal: 2),
+                        width: i == _cur ? 16 : 6,
+                        height: 6,
+                        decoration: BoxDecoration(color: i == _cur ? Colors.white : Colors.white54, borderRadius: BorderRadius.circular(3)),
+                      ),
+                  ]),
+                ),
+              ),
+          ]),
+        ),
+      );
+    });
+  }
+}
+
+/// অ্যাডমিন প্যানেলে যে বিজ্ঞাপন (ছবি + লিংক) দেওয়া আছে সেগুলো ঘুরিয়ে ঘুরিয়ে দেখায়।
+/// নির্দিষ্ট slot-এর বিজ্ঞাপন না থাকলে অন্য slot-এর বিজ্ঞাপন দেখায়; একটিও না থাকলে কিছুই না।
+class AdSlot extends StatelessWidget {
+  final String slot;
+  final int index;
+  const AdSlot({super.key, required this.slot, this.index = 0});
+
+  @override
+  Widget build(BuildContext context) {
+    final all = AppSettings.current.ads;
+    if (all.isEmpty) return const SizedBox.shrink();
+    var list = all.where((a) => a.slot == slot).toList();
+    if (list.isEmpty) list = all;
+    return PromoImage(list[index % list.length], isAd: true);
+  }
+}
+
 /// লাইভ টিভি / ই-পেপার কার্ড
 class LinkCard extends StatelessWidget {
   final LinkBox box;
@@ -701,7 +808,9 @@ class PagedList<T> extends StatefulWidget {
   final Future<List<T>> Function(int page) fetch;
   final int pageSize;
   final Widget Function(BuildContext, T) itemBuilder;
-  const PagedList({super.key, required this.fetch, required this.pageSize, required this.itemBuilder});
+  /// প্রতি এত আইটেম পরপর একটি বিজ্ঞাপন (০ = নেই)
+  final int adEvery;
+  const PagedList({super.key, required this.fetch, required this.pageSize, required this.itemBuilder, this.adEvery = 0});
 
   @override
   State<PagedList<T>> createState() => _PagedListState<T>();
@@ -759,6 +868,9 @@ class _PagedListState<T> extends State<PagedList<T>> {
     await _load();
   }
 
+  bool get _ads => widget.adEvery > 0 && AppSettings.current.ads.isNotEmpty;
+  int get _rows => _ads ? _items.length + _items.length ~/ widget.adEvery : _items.length;
+
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
@@ -766,9 +878,16 @@ class _PagedListState<T> extends State<PagedList<T>> {
       child: ListView.builder(
         controller: _sc,
         physics: const AlwaysScrollableScrollPhysics(),
-        itemCount: _items.length + 1,
+        itemCount: _rows + 1,
         itemBuilder: (context, i) {
-          if (i < _items.length) return widget.itemBuilder(context, _items[i]);
+          if (i < _rows) {
+            final ev = _ads ? widget.adEvery : 0;
+            if (ev > 0) {
+              if (i % (ev + 1) == ev) return AdSlot(slot: 'list', index: i ~/ (ev + 1));
+              return widget.itemBuilder(context, _items[i - i ~/ (ev + 1)]);
+            }
+            return widget.itemBuilder(context, _items[i]);
+          }
           if (_loading) {
             if (_items.isEmpty) return const SizedBox(height: 520, child: SkeletonList());
             return const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()));

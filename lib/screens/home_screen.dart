@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../api.dart';
+import '../fake_stats.dart';
 import '../dynamic_ui.dart';
 import '../models.dart';
 import '../widgets.dart';
@@ -50,6 +51,7 @@ class _HomeScreenState extends State<HomeScreen> {
             }
             return RefreshIndicator(
               onRefresh: () async {
+                FakeStats.bumpMany(snap.data!.latest.map((e) => e.id));
                 ConfigStore.refresh(); // পুল-টু-রিফ্রেশে ডিজাইনও নতুন আছে কিনা দেখে
                 await _refresh();
               },
@@ -109,8 +111,15 @@ class _HomeScreenState extends State<HomeScreen> {
         case 'hero':
           if (ptr < items.length) {
             children.add(const SizedBox(height: 4));
-            children.add(s.style == 'big' ? HeroBelowCard(items[ptr]) : BigNewsCard(items[ptr]));
-            ptr++;
+            if (s.style == 'big') {
+              children.add(HeroBelowCard(items[ptr]));
+              ptr++;
+            } else {
+              // প্রধান খবর: ৫টি খবর ৩ সেকেন্ড পরপর স্লাইড হয়
+              final slides = items.skip(ptr).take(5).toList();
+              children.add(HeroSlider(slides));
+              ptr += slides.length;
+            }
           }
           break;
         case 'latest':
@@ -121,8 +130,12 @@ class _HomeScreenState extends State<HomeScreen> {
             final st = s.style.isEmpty ? AppSettings.current.cards.style : s.style;
             if (st == 'grid') {
               children.add(NewsGrid(part));
+              children.add(AdSlot(slot: 'home', index: ptr));
             } else {
-              children.addAll(part.map((n) => NewsCard(n, style: s.style)));
+              for (var i = 0; i < part.length; i++) {
+                children.add(NewsCard(part[i], style: s.style));
+                if ((i + 1) % 5 == 0) children.add(AdSlot(slot: 'home', index: ptr + i));
+              }
             }
           }
           break;

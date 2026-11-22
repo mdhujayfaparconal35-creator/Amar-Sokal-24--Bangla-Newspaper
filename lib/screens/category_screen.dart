@@ -11,6 +11,7 @@ class CategoryScreen extends StatelessWidget {
 
   Widget _list() {
     final list = PagedList<NewsItem>(
+      adEvery: 5,
       key: ValueKey('cat${category.id}'),
       pageSize: 15,
       fetch: (p) => Api.posts(category: category.id, page: p),

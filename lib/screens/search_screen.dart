@@ -45,6 +45,7 @@ class _SearchScreenState extends State<SearchScreen> {
       body: _query.isEmpty
           ? const Center(child: Text('খুঁজতে কমপক্ষে ২ অক্ষর লিখুন'))
           : PagedList<NewsItem>(
+              adEvery: 5,
               key: ValueKey(_query),
               pageSize: 15,
               fetch: (p) => Api.posts(search: _query, page: p),
