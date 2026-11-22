@@ -2,21 +2,18 @@ import 'dart:ui' show DartPluginRegistrant;
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
-import 'package:workmanager/workmanager.dart';
+import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'config.dart';
 import 'notifications.dart';
 
 /// ব্যাকগ্রাউন্ডে (অ্যাপ বন্ধ থাকলেও) প্রতি ~১৫ মিনিটে নতুন নিউজ/ভিডিও দেখে
 @pragma('vm:entry-point')
-void notifCallbackDispatcher() {
-  Workmanager().executeTask((task, input) async {
-    try {
-      WidgetsFlutterBinding.ensureInitialized();
-      DartPluginRegistrant.ensureInitialized();
-      await Notifier.checkNew();
-    } catch (_) {}
-    return true;
-  });
+Future<void> notifAlarmCallback() async {
+  try {
+    WidgetsFlutterBinding.ensureInitialized();
+    DartPluginRegistrant.ensureInitialized();
+    await Notifier.checkNew();
+  } catch (_) {}
 }
 
 /// ফোনের নোটিফিকেশন বারে নোটিফিকেশন দেখানো (flutter_local_notifications)
@@ -44,12 +41,13 @@ class SysNotify {
   static Future<void> start() async {
     try {
       await requestPermission();
-      await Workmanager().initialize(notifCallbackDispatcher);
-      await Workmanager().registerPeriodicTask(
-        'as_check_new',
-        'as_check_new',
-        frequency: const Duration(minutes: 15),
-        constraints: Constraints(networkType: NetworkType.connected),
+      await AndroidAlarmManager.initialize();
+      await AndroidAlarmManager.periodic(
+        const Duration(minutes: 15),
+        7001,
+        notifAlarmCallback,
+        wakeup: true,
+        rescheduleOnReboot: true,
       );
     } catch (_) {}
   }
