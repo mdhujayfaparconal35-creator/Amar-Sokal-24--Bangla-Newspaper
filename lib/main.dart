@@ -4,6 +4,7 @@ import 'api.dart';
 import 'config.dart';
 import 'dynamic_ui.dart';
 import 'models.dart';
+import 'notifications.dart';
 import 'screens/category_screen.dart';
 import 'screens/epaper_screen.dart';
 import 'screens/home_screen.dart';
@@ -21,6 +22,8 @@ Future<void> main() async {
     await ConfigStore.refresh(timeout: const Duration(seconds: 3));
   }
   runApp(const NewsApp());
+  // নোটিফিকেশন: অনুমতি চাওয়া + ব্যাকগ্রাউন্ডে নতুন নিউজ/ভিডিও দেখা (অ্যাপ বন্ধ থাকলেও)
+  Notifier.start().then((_) => Notifier.checkNew());
 }
 
 ThemeData _buildTheme(AppSettings s, Brightness b) {
@@ -43,6 +46,10 @@ ThemeData _buildTheme(AppSettings s, Brightness b) {
   );
   final base = ThemeData(useMaterial3: true, colorScheme: scheme, brightness: b, fontFamily: 'Kalpurush');
   return base.copyWith(
+    pageTransitionsTheme: const PageTransitionsTheme(builders: {
+      TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+      TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+    }),
     scaffoldBackgroundColor: bg,
     cardColor: card,
     canvasColor: bg,
@@ -53,7 +60,12 @@ ThemeData _buildTheme(AppSettings s, Brightness b) {
       surfaceTintColor: Colors.transparent,
       centerTitle: false,
       scrolledUnderElevation: 0,
-      shape: Border(bottom: BorderSide(color: fg.withAlpha(28))),
+      elevation: 3,
+      shadowColor: Colors.black.withAlpha(dark ? 120 : 70),
+    ),
+    snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12)),
     ),
     dividerTheme: DividerThemeData(color: fg.withAlpha(30), space: 1),
     navigationBarTheme: NavigationBarThemeData(
@@ -75,11 +87,14 @@ class NewsApp extends StatefulWidget {
 
 class _NewsAppState extends State<NewsApp> with WidgetsBindingObserver {
   Timer? _timer;
+  Timer? _notifTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // অ্যাপ খোলা থাকলে প্রতি ৩ মিনিটে নতুন নিউজ/ভিডিও দেখে
+    _notifTimer = Timer.periodic(const Duration(minutes: 3), (_) => Notifier.checkNew());
     // ক্যাশ দিয়ে চালু হলে পেছনে নতুন version আছে কিনা দেখা
     if (ConfigStore.hasCache) ConfigStore.refresh();
     _timer = Timer.periodic(const Duration(minutes: AppConfig.configRefreshMinutes), (_) => ConfigStore.refreshIfStale());
@@ -88,13 +103,17 @@ class _NewsAppState extends State<NewsApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     _timer?.cancel();
+    _notifTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) ConfigStore.refreshIfStale();
+    if (state == AppLifecycleState.resumed) {
+      ConfigStore.refreshIfStale();
+      Notifier.checkNew();
+    }
   }
 
   @override
@@ -104,6 +123,7 @@ class _NewsAppState extends State<NewsApp> with WidgetsBindingObserver {
       builder: (context, s, _) => MaterialApp(
         title: s.appName,
         debugShowCheckedModeBanner: false,
+        navigatorKey: appNavKey,
         theme: _buildTheme(s, Brightness.light),
         darkTheme: _buildTheme(s, Brightness.dark),
         themeMode: _mode(s.theme.mode),
@@ -142,6 +162,7 @@ class _ShellState extends State<Shell> {
     ConfigStore.notifier.addListener(_onConfig);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) maybeShowPopup(context);
+      Notifier.handleLaunch(); // নোটিফিকেশনে ট্যাপ করে অ্যাপ খুললে সেই নিউজ/ভিডিও খোলে
     });
   }
 

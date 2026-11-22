@@ -35,7 +35,7 @@ class _HomeScreenState extends State<HomeScreen> {
           future: _future,
           builder: (context, snap) {
             if (snap.connectionState != ConnectionState.done) {
-              return const Center(child: CircularProgressIndicator());
+              return const SkeletonList(count: 6);
             }
             if (snap.hasError || snap.data == null) {
               return Center(

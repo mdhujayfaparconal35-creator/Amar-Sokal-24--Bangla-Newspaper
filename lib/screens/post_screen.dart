@@ -20,6 +20,13 @@ class PostScreen extends StatefulWidget {
 class _PostScreenState extends State<PostScreen> {
   late Future<NewsDetail> _future = Api.post(widget.id);
   double _fontSize = 20;
+  final ValueNotifier<double> _progress = ValueNotifier<double>(0);
+
+  @override
+  void dispose() {
+    _progress.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +62,7 @@ class _PostScreenState extends State<PostScreen> {
     final cat = d.item.category;
     final when = bnDateTime(d.item.date);
 
-    return ListView(children: [
+    final list = ListView(children: [
       const Divider(height: 1),
       // ব্রেডক্রাম্ব: প্রচ্ছদ » ক্যাটাগরি
       Padding(
@@ -160,6 +167,15 @@ class _PostScreenState extends State<PostScreen> {
               border: Border(left: BorderSide(color: primary, width: 4)),
               fontStyle: FontStyle.italic,
             ),
+            // কনটেন্টের ভেতরের শিরোনাম ওপরের শিরোনামের মতোই (একই ফন্ট, একই সাইজ, বাম থেকে শুরু)
+            'h1': Style(
+              fontFamily: 'Kalpurush',
+              fontSize: FontSize(30),
+              fontWeight: FontWeight.w700,
+              lineHeight: const LineHeight(1.3),
+              textAlign: TextAlign.left,
+              margin: Margins.only(top: 6, bottom: 12),
+            ),
             'h2': Style(fontSize: FontSize(_fontSize + 4), margin: Margins.only(top: 8, bottom: 12)),
             'h3': Style(fontSize: FontSize(_fontSize + 2), margin: Margins.only(top: 8, bottom: 10)),
           },
@@ -178,6 +194,31 @@ class _PostScreenState extends State<PostScreen> {
         for (final n in d.related) NewsCard(n),
       ],
       const AppFooter(),
+    ]);
+    // পড়ার অগ্রগতি: ওপরে সরু রঙিন রেখা
+    return Stack(children: [
+      NotificationListener<ScrollNotification>(
+        onNotification: (n) {
+          final max = n.metrics.maxScrollExtent;
+          if (max > 0) _progress.value = (n.metrics.pixels / max).clamp(0.0, 1.0);
+          return false;
+        },
+        child: list,
+      ),
+      Positioned(
+        left: 0,
+        right: 0,
+        top: 0,
+        child: ValueListenableBuilder<double>(
+          valueListenable: _progress,
+          builder: (_, v, __) => LinearProgressIndicator(
+            value: v,
+            minHeight: 3,
+            backgroundColor: Colors.transparent,
+            valueColor: AlwaysStoppedAnimation(primary),
+          ),
+        ),
+      ),
     ]);
   }
 

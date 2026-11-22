@@ -239,7 +239,10 @@ class AppDrawer extends StatelessWidget {
           ),
           padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + 20, 16, 18),
           child: Row(children: [
-            ClipOval(child: Image.asset('assets/logo.png', width: 56, height: 56)),
+            Container(
+              decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2.5), boxShadow: [BoxShadow(color: Colors.black.withAlpha(70), blurRadius: 10)]),
+              child: ClipOval(child: Image.asset('assets/logo.png', width: 64, height: 64)),
+            ),
             const SizedBox(width: 14),
             Expanded(
               child: Text(s.appName, style: const TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.bold)),
@@ -248,8 +251,8 @@ class AppDrawer extends StatelessWidget {
         ),
         if (s.menu.isNotEmpty)
           ...s.menu.map((m) => ListTile(
-                title: Text(m.label),
-                trailing: const Icon(Icons.chevron_right),
+                title: Text(m.label, style: const TextStyle(fontWeight: FontWeight.w600)),
+                trailing: Icon(Icons.chevron_right, color: primary),
                 onTap: () => _open(context, m),
               ))
         else
@@ -263,8 +266,8 @@ class AppDrawer extends StatelessWidget {
               return Column(children: [
                 for (final c in cats)
                   ListTile(
-                    title: Text(c.name),
-                    trailing: const Icon(Icons.chevron_right),
+                    title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    trailing: Icon(Icons.chevron_right, color: primary),
                     onTap: () => _openCat(context, c),
                   ),
               ]);
@@ -467,7 +470,6 @@ class TopTabBar extends StatelessWidget implements PreferredSizeWidget {
         height: preferredSize.height,
         decoration: BoxDecoration(
           color: conf.bg ?? theme.appBarTheme.backgroundColor ?? theme.scaffoldBackgroundColor,
-          border: Border(bottom: BorderSide(color: theme.dividerColor.withAlpha(90))),
         ),
         child: LayoutBuilder(builder: (context, c) {
           final n = items.isEmpty ? 1 : items.length;
@@ -488,6 +490,7 @@ class TopTabBar extends StatelessWidget implements PreferredSizeWidget {
   Widget _tab(BuildContext context, TopTabItem it, double w, bool sel, Color active, Color idle, bool showLabel) {
     final col = sel ? active : idle;
     return InkWell(
+      borderRadius: BorderRadius.circular(12),
       onTap: () {
         // নিউজ/ভিডিও/ওয়েব পেজের ভেতর থেকে ট্যাপ করলে আগে মূল পেজে ফেরে, তারপর ট্যাব বদলায়
         Navigator.of(context).popUntil((r) => r.isFirst);
@@ -522,9 +525,11 @@ class TopTabBar extends StatelessWidget implements PreferredSizeWidget {
                 ),
               ),
             ),
-            Container(
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
               height: 4,
-              margin: const EdgeInsets.symmetric(horizontal: 10),
+              margin: EdgeInsets.symmetric(horizontal: sel ? 10 : 26),
               decoration: BoxDecoration(
                 color: sel ? col : Colors.transparent,
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),

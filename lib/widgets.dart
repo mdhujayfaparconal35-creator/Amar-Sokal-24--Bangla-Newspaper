@@ -11,6 +11,96 @@ void openPost(BuildContext context, int id) {
   Navigator.of(context).push(MaterialPageRoute(builder: (_) => PostScreen(id: id)));
 }
 
+/// প্রিমিয়াম কার্ডের বক্স: নরম ছায়া, গোল কোণা, হালকা বর্ডার
+BoxDecoration _cardBox(BuildContext context, double radius) {
+  final dark = Theme.of(context).brightness == Brightness.dark;
+  return BoxDecoration(
+    color: Theme.of(context).cardColor,
+    borderRadius: BorderRadius.circular(radius),
+    border: Border.all(color: (dark ? Colors.white : Colors.black).withAlpha(dark ? 20 : 14)),
+    boxShadow: [BoxShadow(color: Colors.black.withAlpha(dark ? 60 : 22), blurRadius: 14, offset: const Offset(0, 5))],
+  );
+}
+
+/// লিস্টের আইটেম নরমভাবে ভেসে ওঠে (fade + হালকা ওপরে ওঠা)
+class Reveal extends StatelessWidget {
+  final Widget child;
+  const Reveal({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeOutCubic,
+      builder: (_, v, c) => Opacity(opacity: v, child: Transform.translate(offset: Offset(0, 16 * (1 - v)), child: c)),
+      child: child,
+    );
+  }
+}
+
+/// লোড হওয়ার সময় ঘুরন্ত চাকার বদলে ঝলমলে খালি কার্ড (প্রিমিয়াম অ্যাপের মতো)
+class SkeletonList extends StatefulWidget {
+  final int count;
+  const SkeletonList({super.key, this.count = 5});
+
+  @override
+  State<SkeletonList> createState() => _SkeletonListState();
+}
+
+class _SkeletonListState extends State<SkeletonList> with SingleTickerProviderStateMixin {
+  late final AnimationController _a = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _a.dispose();
+    super.dispose();
+  }
+
+  Widget _bar(double w, double h, Color c) => Container(
+        width: w,
+        height: h,
+        decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(6)),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final base = dark ? Colors.white : Colors.black;
+    return AnimatedBuilder(
+      animation: _a,
+      builder: (_, __) {
+        final c = base.withAlpha((14 + 16 * _a.value).round());
+        return ListView(
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.only(top: 8),
+          children: [
+            for (var i = 0; i < widget.count; i++)
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.all(9),
+                decoration: _cardBox(context, 18),
+                child: Row(children: [
+                  Container(width: 118, height: 82, decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(12))),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      _bar(double.infinity, 14, c),
+                      const SizedBox(height: 8),
+                      _bar(180, 14, c),
+                      const SizedBox(height: 14),
+                      _bar(90, 10, c),
+                    ]),
+                  ),
+                ]),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class NetImage extends StatelessWidget {
   final String url;
   final double? width, height;
@@ -49,13 +139,21 @@ class SectionTitle extends StatelessWidget {
       child: Row(children: [
         Container(
           width: 5,
-          height: 24,
-          decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(3)),
+          height: 26,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(3),
+            gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [c, Color.lerp(c, Colors.redAccent, 0.55)!]),
+          ),
         ),
         const SizedBox(width: 10),
-        Text(text, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.bold)),
+        Text(text, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800, letterSpacing: 0.2)),
         const SizedBox(width: 12),
-        Expanded(child: Container(height: 1.5, color: c.withAlpha(50))),
+        Expanded(
+          child: Container(
+            height: 1.5,
+            decoration: BoxDecoration(gradient: LinearGradient(colors: [c.withAlpha(90), c.withAlpha(0)])),
+          ),
+        ),
       ]),
     );
   }
@@ -72,6 +170,10 @@ class NewsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cc = AppSettings.current.cards;
     final st = (style == null || style!.isEmpty) ? cc.style : style!;
+    return Reveal(child: _byStyle(context, cc, st));
+  }
+
+  Widget _byStyle(BuildContext context, CardConf cc, String st) {
     switch (st) {
       case 'overlay':
         return Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: BigNewsCard(item));
@@ -96,13 +198,17 @@ class NewsCard extends StatelessWidget {
           Flexible(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(color: primary.withAlpha(24), borderRadius: BorderRadius.circular(20)),
+              decoration: BoxDecoration(color: primary.withAlpha(26), borderRadius: BorderRadius.circular(20), border: Border.all(color: primary.withAlpha(50))),
               child: Text(item.category!.name,
                   maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: primary, fontWeight: FontWeight.w700)),
             ),
           ),
         if (showCat && cc.showTime) const SizedBox(width: 8),
-        if (cc.showTime) Text(timeAgo(item.date), style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        if (cc.showTime) ...[
+          const Icon(Icons.access_time, size: 13, color: Colors.grey),
+          const SizedBox(width: 3),
+          Text(timeAgo(item.date), style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        ],
       ]),
     );
   }
@@ -140,9 +246,9 @@ class NewsCard extends StatelessWidget {
     return InkWell(
       onTap: () => openPost(context, item.id),
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12),
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.withAlpha(50)))),
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        padding: const EdgeInsets.all(9),
+        decoration: _cardBox(context, cc.radius + 6),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: cc.imageRight ? [text, const SizedBox(width: 12), image] : [image, const SizedBox(width: 12), text],
@@ -157,9 +263,15 @@ class NewsCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(cc.radius),
-            child: AspectRatio(aspectRatio: 16 / 9, child: NetImage(item.image)),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(cc.radius + 4),
+              boxShadow: [BoxShadow(color: Colors.black.withAlpha(45), blurRadius: 14, offset: const Offset(0, 6))],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(cc.radius + 4),
+              child: AspectRatio(aspectRatio: 16 / 9, child: NetImage(item.image)),
+            ),
           ),
           const SizedBox(height: 8),
           _title(size: 18),
@@ -174,8 +286,9 @@ class NewsCard extends StatelessWidget {
     return InkWell(
       onTap: () => openPost(context, item.id),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.withAlpha(60)))),
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: _cardBox(context, cc.radius + 6),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           _title(size: 16, lines: 2),
           _excerpt(cc),
@@ -196,7 +309,7 @@ class GridCard extends StatelessWidget {
     final cc = AppSettings.current.cards;
     final primary = Theme.of(context).colorScheme.primary;
     final showCat = cc.showCategory && item.category != null;
-    return InkWell(
+    return Reveal(child: InkWell(
       onTap: () => openPost(context, item.id),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(
@@ -234,7 +347,7 @@ class GridCard extends StatelessWidget {
             ]),
           ),
       ]),
-    );
+    ));
   }
 }
 
@@ -312,7 +425,12 @@ class BigNewsCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: GestureDetector(
         onTap: () => openPost(context, item.id),
-        child: ClipRRect(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(radius),
+            boxShadow: [BoxShadow(color: Colors.black.withAlpha(60), blurRadius: 16, offset: const Offset(0, 7))],
+          ),
+          child: ClipRRect(
           borderRadius: BorderRadius.circular(radius),
           child: AspectRatio(
             aspectRatio: 16 / 10,
@@ -354,6 +472,7 @@ class BigNewsCard extends StatelessWidget {
                 ]),
               ),
             ]),
+          ),
           ),
         ),
       ),
@@ -499,7 +618,11 @@ class _BreakingBarState extends State<BreakingBar> {
         onTap: it.postId == null ? null : () => openPost(context, it.postId!),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-          decoration: BoxDecoration(color: c.bg, borderRadius: BorderRadius.circular(AppSettings.current.cards.radius)),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: [c.bg, Color.lerp(c.bg, Colors.black, 0.28)!]),
+            borderRadius: BorderRadius.circular(AppSettings.current.cards.radius + 4),
+            boxShadow: [BoxShadow(color: c.bg.withAlpha(90), blurRadius: 12, offset: const Offset(0, 4))],
+          ),
           child: Row(children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -542,7 +665,23 @@ class VideoCard extends StatelessWidget {
               aspectRatio: 16 / 9,
               child: Stack(fit: StackFit.expand, children: [
                 NetImage(video.thumb),
-                const Center(child: Icon(Icons.play_circle_fill, color: Colors.white, size: 48)),
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, Colors.black45], stops: [0.5, 1]),
+                  ),
+                ),
+                Center(
+                  child: Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withAlpha(235),
+                      boxShadow: [BoxShadow(color: Colors.black.withAlpha(90), blurRadius: 12, offset: const Offset(0, 4))],
+                    ),
+                    child: Icon(Icons.play_arrow_rounded, color: Theme.of(context).colorScheme.primary, size: 32),
+                  ),
+                ),
               ]),
             ),
           ),
@@ -631,6 +770,7 @@ class _PagedListState<T> extends State<PagedList<T>> {
         itemBuilder: (context, i) {
           if (i < _items.length) return widget.itemBuilder(context, _items[i]);
           if (_loading) {
+            if (_items.isEmpty) return const SizedBox(height: 520, child: SkeletonList());
             return const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()));
           }
           if (_error) {
@@ -665,6 +805,8 @@ class ShareRow extends StatelessWidget {
       padding: const EdgeInsets.only(right: 10),
       child: Material(
         color: bg,
+        elevation: 3,
+        shadowColor: bg.withAlpha(120),
         shape: const CircleBorder(),
         child: InkWell(
           customBorder: const CircleBorder(),
@@ -715,14 +857,14 @@ class _Partner {
 }
 
 const List<_Partner> _partners = [
-  _Partner('assets/partners/p1.png', ''),
-  _Partner('assets/partners/p2.png', 'https://astechnologiesltd.com'),
-  _Partner('assets/partners/p3.png', ''),
-  _Partner('assets/partners/p4.png', 'https://shop.amarsokal24.com'),
-  _Partner('assets/partners/p5.png', 'https://epaper.amarsokal24.com', 'ই-পেপার'),
-  _Partner('assets/partners/p6.png', 'https://smm.astechnologiesltd.com'),
-  _Partner('assets/partners/p7.png', 'https://en.amarsokal24.com'),
-  _Partner('assets/partners/p8.png', ''),
+  _Partner('assets/partners/p1.png', 'https://amarsokalfoundation.org/', 'আমার সকাল ফাউন্ডেশন'),
+  _Partner('assets/partners/p2.png', 'https://astechnologiesltd.com/', 'AS Tech'),
+  _Partner('assets/partners/p3.png', 'https://njwc.bd/', 'জাতীয় সাংবাদিক কল্যাণ পরিষদ'),
+  _Partner('assets/partners/p4.png', 'https://shop.amarsokal24.com/', 'আমার সকাল শপ'),
+  _Partner('assets/partners/p5.png', 'https://epaper.amarsokal24.com/', 'ই-পেপার'),
+  _Partner('assets/partners/p6.png', 'https://smm.astechnologiesltd.com/', 'AS-SMM'),
+  _Partner('assets/partners/p7.png', 'https://en.amarsokal24.com/', 'The Amar Sokal 24'),
+  _Partner('assets/partners/p8.png', 'https://institute.amarsokal24.com/', 'আমার সকাল ইনস্টিটিউট'),
 ];
 
 /// "আমার সকালের অন্যান্য উদ্যোগ" লোগো গ্রিড
@@ -732,9 +874,11 @@ class PartnersSection extends StatelessWidget {
   Widget _card(BuildContext context, _Partner p) {
     return Material(
       color: Colors.white,
+      elevation: 3,
+      shadowColor: Colors.black.withAlpha(60),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: BorderSide(color: Colors.black.withAlpha(30)),
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: AppConfig.brand.withAlpha(22)),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -789,16 +933,14 @@ class AppFooter extends StatelessWidget {
       margin: const EdgeInsets.only(top: 20),
       padding: const EdgeInsets.fromLTRB(0, 20, 0, 26),
       decoration: const BoxDecoration(
-        color: Colors.white,
+        gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFFF3F5FB), Colors.white]),
         border: Border(top: BorderSide(color: AppConfig.brand, width: 4)),
       ),
       child: Column(children: [
         const PartnersSection(),
         const SizedBox(height: 10),
         const Divider(height: 1, indent: 14, endIndent: 14),
-        const SizedBox(height: 18),
-        const AppLogo(height: 60),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         if (AppConfig.editorPublisher.isNotEmpty)
           Text('সম্পাদক ও প্রকাশক : ${AppConfig.editorPublisher}',
               textAlign: TextAlign.center,
