@@ -7,6 +7,7 @@ import 'dynamic_ui.dart';
 import 'models.dart';
 import 'fake_stats.dart';
 import 'notifications.dart';
+import 'rewards/reward_api.dart';
 import 'screens/category_screen.dart';
 import 'screens/epaper_screen.dart';
 import 'screens/home_screen.dart';
@@ -24,6 +25,8 @@ Future<void> main() async {
     await ConfigStore.refresh(timeout: const Duration(seconds: 3));
   }
   await FakeStats.load();
+  await RewardApi.init();
+  unawaited(RewardApi.loadConfig());
   runApp(const NewsApp());
   // নোটিফিকেশন: অনুমতি চাওয়া + ব্যাকগ্রাউন্ডে নতুন নিউজ/ভিডিও দেখা (অ্যাপ বন্ধ থাকলেও)
   Notifier.start().then((_) => Notifier.checkNew());

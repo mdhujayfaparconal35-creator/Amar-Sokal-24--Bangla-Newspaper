@@ -6,6 +6,8 @@ import '../fake_stats.dart';
 import '../models.dart';
 import '../util.dart';
 import '../widgets.dart';
+import '../rewards/read_reward.dart';
+import '../rewards/share_submit_screen.dart';
 import 'category_screen.dart';
 
 /// খবরের পেজ (কালবেলা অ্যাপের মতো): ওপরে ব্যাক + লোগো + সার্চ/মেনু, তারপর ব্রেডক্রাম্ব,
@@ -177,6 +179,10 @@ class _PostScreenState extends State<PostScreen> {
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
         child: ShareRow(title: d.item.title, link: d.item.link),
       ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+        child: RewardShareButton(postId: d.item.id, title: d.item.title, link: d.item.link),
+      ),
       const AdSlot(slot: 'post', index: 0),
       if (d.item.image.isNotEmpty)
         Padding(
@@ -264,6 +270,8 @@ class _PostScreenState extends State<PostScreen> {
           ),
         ),
       ),
+      // কয়েন চিপ: খবর পড়ার সময় গোনে ও কয়েন যোগ করে
+      Positioned(right: 12, bottom: 16, child: ReadRewardChip(postId: d.item.id)),
     ]);
   }
 

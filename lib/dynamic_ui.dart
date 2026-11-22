@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart';
 import 'config.dart';
 import 'models.dart';
+import 'rewards/reward_api.dart';
+import 'rewards/reward_screens.dart';
 import 'util.dart';
 import 'widgets.dart';
 import 'screens/category_screen.dart';
@@ -249,6 +251,21 @@ class AppDrawer extends StatelessWidget {
             ),
           ]),
         ),
+        ValueListenableBuilder<Map<String, dynamic>?>(
+          valueListenable: RewardApi.me,
+          builder: (context, me, _) => ListTile(
+            leading: Icon(Icons.monetization_on_rounded, color: Colors.amber.shade700),
+            title: const Text('রিওয়ার্ড কয়েন', style: TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: me == null ? const Text('খবর পড়ুন, কয়েন জিতুন') : Text('${bn(ri(me['coins']))} কয়েন'),
+            trailing: Icon(Icons.chevron_right, color: primary),
+            onTap: () {
+              final nav = Navigator.of(context);
+              nav.pop();
+              nav.push(MaterialPageRoute(builder: (_) => const RewardScreen()));
+            },
+          ),
+        ),
+        const Divider(height: 1),
         if (s.menu.isNotEmpty)
           ...s.menu.map((m) => ListTile(
                 title: Text(m.label, style: const TextStyle(fontWeight: FontWeight.w600)),
