@@ -16,6 +16,24 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   late Future<HomeData> _future = Api.home();
+  final ScrollController _sc = ScrollController();
+  final ValueNotifier<bool> _showTop = ValueNotifier<bool>(false);
+
+  @override
+  void initState() {
+    super.initState();
+    _sc.addListener(() {
+      final v = _sc.hasClients && _sc.offset > 800;
+      if (v != _showTop.value) _showTop.value = v;
+    });
+  }
+
+  @override
+  void dispose() {
+    _sc.dispose();
+    _showTop.dispose();
+    super.dispose();
+  }
 
   Future<void> _refresh() async {
     Api.clearCache();
@@ -33,6 +51,19 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, s, _) => Scaffold(
         drawer: const AppDrawer(),
         appBar: _appBar(s),
+        floatingActionButton: ValueListenableBuilder<bool>(
+          valueListenable: _showTop,
+          builder: (context, v, _) => AnimatedScale(
+            scale: v ? 1 : 0,
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutBack,
+            child: FloatingActionButton.extended(
+              onPressed: () => _sc.animateTo(0, duration: const Duration(milliseconds: 650), curve: Curves.easeOutCubic),
+              icon: const Icon(Icons.keyboard_arrow_up),
+              label: const Text('উপরে যান', style: TextStyle(fontWeight: FontWeight.w800)),
+            ),
+          ),
+        ),
         body: FutureBuilder<HomeData>(
           future: _future,
           builder: (context, snap) {
@@ -52,6 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
             }
             return RefreshIndicator(
               onRefresh: () async {
+                popupOnReload(context); // প্রতি ৩য় রিলোডে একবার পপআপ
                 FakeStats.bumpMany(snap.data!.latest.map((e) => e.id));
                 ConfigStore.refresh(); // পুল-টু-রিফ্রেশে ডিজাইনও নতুন আছে কিনা দেখে
                 await _refresh();
@@ -206,7 +238,7 @@ class _HomeScreenState extends State<HomeScreen> {
     children.add(const SizedBox(height: 24));
     children.add(const AppFooter());
 
-    return ListView(physics: const AlwaysScrollableScrollPhysics(), children: children);
+    return ListView(controller: _sc, physics: const AlwaysScrollableScrollPhysics(), children: children);
   }
 }
 

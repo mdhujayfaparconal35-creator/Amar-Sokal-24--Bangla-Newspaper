@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'fake_stats.dart';
 import 'config.dart';
+import 'dynamic_ui.dart' show popupOnReload;
 import 'screens/video_player_screen.dart';
 import 'models.dart';
 import 'util.dart';
@@ -874,7 +875,10 @@ class _PagedListState<T> extends State<PagedList<T>> {
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
-      onRefresh: _refresh,
+      onRefresh: () {
+        popupOnReload(context);
+        return _refresh();
+      },
       child: ListView.builder(
         controller: _sc,
         physics: const AlwaysScrollableScrollPhysics(),

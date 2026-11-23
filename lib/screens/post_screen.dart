@@ -7,6 +7,7 @@ import '../models.dart';
 import '../util.dart';
 import '../widgets.dart';
 import '../rewards/read_reward.dart';
+import '../saved.dart';
 import '../rewards/share_submit_screen.dart';
 import 'category_screen.dart';
 
@@ -172,6 +173,7 @@ class _PostScreenState extends State<PostScreen> {
           Icon(Icons.share_outlined, size: 17, color: grey),
           const SizedBox(width: 5),
           Text('${FakeStats.fmt(shares)} শেয়ার', style: TextStyle(fontSize: 14.5, color: grey, fontWeight: FontWeight.w600)),
+          Expanded(child: Align(alignment: Alignment.centerRight, child: SaveButton(item: d.item))),
         ]),
       ),
       // শেয়ার বাটন

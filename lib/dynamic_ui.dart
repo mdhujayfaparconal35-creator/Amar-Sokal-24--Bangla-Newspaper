@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'dart:ui' as ui;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +9,7 @@ import 'config.dart';
 import 'models.dart';
 import 'notifications.dart';
 import 'rewards/reward_api.dart';
+import 'saved.dart';
 import 'rewards/reward_screens.dart';
 import 'util.dart';
 import 'widgets.dart';
@@ -266,6 +268,20 @@ class AppDrawer extends StatelessWidget {
             },
           ),
         ),
+        ValueListenableBuilder<List<NewsItem>>(
+          valueListenable: SavedStore.items,
+          builder: (context, saved, _) => ListTile(
+            leading: Icon(Icons.bookmarks_outlined, color: primary),
+            title: const Text('সংরক্ষিত খবর', style: TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: saved.isEmpty ? null : Text('${bn(saved.length)}টি খবর'),
+            trailing: Icon(Icons.chevron_right, color: primary),
+            onTap: () {
+              final nav = Navigator.of(context);
+              nav.pop();
+              nav.push(MaterialPageRoute(builder: (_) => const SavedScreen()));
+            },
+          ),
+        ),
         const Divider(height: 1),
         if (s.menu.isNotEmpty)
           ...s.menu.map((m) => ListTile(
@@ -350,8 +366,10 @@ class UpdateScreen extends StatelessWidget {
 }
 
 String? _lastPopupShown; // একই চালুতে একই পপআপ দুবার নয়
+bool _popupOpen = false;
+int _reloads = 0;
 
-/// পপআপ দেখানোর নিয়ম (once / daily / always) মেনে দেখায়।
+/// পপআপ দেখানোর নিয়ম (once / daily / always) মেনে দেখায়। ৪ সেকেন্ড পর নিজে থেকে বন্ধ হয়।
 Future<void> maybeShowPopup(BuildContext context) async {
   final p = AppSettings.current.popup;
   if (!p.on || p.id.isEmpty || _lastPopupShown == p.id) return;
@@ -368,65 +386,169 @@ Future<void> maybeShowPopup(BuildContext context) async {
   _lastPopupShown = p.id;
   await prefs.setString(key, today);
   if (!context.mounted) return;
+  await _showPopup(context, p);
+}
 
-  await showDialog<void>(
-    context: context,
-    builder: (ctx) => Dialog(
-      insetPadding: const EdgeInsets.all(24),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSettings.current.theme.radius)),
-      clipBehavior: Clip.antiAlias,
-      child: SingleChildScrollView(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Stack(children: [
-            if (p.image.isNotEmpty)
-              GestureDetector(
-                onTap: p.link.isEmpty
-                    ? null
-                    : () {
-                        Navigator.of(ctx).pop();
-                        openLink(p.link);
-                      },
-                child: NetImage(p.image, width: double.infinity, fit: BoxFit.fitWidth),
-              )
-            else
-              const SizedBox(height: 40, width: double.infinity),
-            Positioned(
-              right: 4,
-              top: 4,
-              child: IconButton.filled(
-                style: IconButton.styleFrom(backgroundColor: Colors.black54, foregroundColor: Colors.white),
-                icon: const Icon(Icons.close),
-                onPressed: () => Navigator.of(ctx).pop(),
+/// পেজ রিলোড (টেনে রিফ্রেশ) করলে প্রতি ৩য় বারে একবার পপআপ আসে, বাকি দুইবার আসে না।
+Future<void> popupOnReload(BuildContext context) async {
+  final p = AppSettings.current.popup;
+  if (!p.on || p.id.isEmpty) return;
+  if (p.title.isEmpty && p.image.isEmpty && p.text.isEmpty) return;
+  _reloads++;
+  if (_reloads % 3 != 0) return;
+  if (!context.mounted) return;
+  await _showPopup(context, p);
+}
+
+Future<void> _showPopup(BuildContext context, PopupConf p) async {
+  if (_popupOpen) return;
+  _popupOpen = true;
+  try {
+    await showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'বন্ধ করুন',
+      barrierColor: Colors.black.withAlpha(160),
+      transitionDuration: const Duration(milliseconds: 380),
+      pageBuilder: (ctx, a, b) => _PopupCard(conf: p),
+      transitionBuilder: (ctx, a, b, child) {
+        final c = CurvedAnimation(parent: a, curve: Curves.easeOutBack, reverseCurve: Curves.easeIn);
+        return FadeTransition(opacity: a, child: ScaleTransition(scale: Tween<double>(begin: 0.8, end: 1.0).animate(c), child: child));
+      },
+    );
+  } finally {
+    _popupOpen = false;
+  }
+}
+
+class _PopupCard extends StatefulWidget {
+  final PopupConf conf;
+  const _PopupCard({required this.conf});
+
+  @override
+  State<_PopupCard> createState() => _PopupCardState();
+}
+
+class _PopupCardState extends State<_PopupCard> with SingleTickerProviderStateMixin {
+  static const int _secs = 4;
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(seconds: _secs));
+
+  @override
+  void initState() {
+    super.initState();
+    _c.addStatusListener((s) {
+      if (s == AnimationStatus.completed) _close();
+    });
+    _c.forward();
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  void _close() {
+    if (!mounted) return;
+    final r = ModalRoute.of(context);
+    if (r == null || !r.isActive) return;
+    if (r.isCurrent) {
+      Navigator.of(context).pop();
+    } else {
+      Navigator.of(context).removeRoute(r);
+    }
+  }
+
+  void _go() {
+    final link = widget.conf.link;
+    _close();
+    if (link.isNotEmpty) openLink(link);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.conf;
+    final radius = max(22.0, AppSettings.current.theme.radius);
+    final primary = Theme.of(context).colorScheme.primary;
+    return SafeArea(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(22),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Material(
+              color: Theme.of(context).cardColor,
+              elevation: 16,
+              shadowColor: Colors.black,
+              borderRadius: BorderRadius.circular(radius),
+              clipBehavior: Clip.antiAlias,
+              child: SingleChildScrollView(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Stack(children: [
+                    if (p.image.isNotEmpty)
+                      GestureDetector(
+                        onTap: p.link.isEmpty ? null : _go,
+                        child: NetImage(p.image, width: double.infinity, fit: BoxFit.fitWidth),
+                      )
+                    else
+                      const SizedBox(height: 56, width: double.infinity),
+                    // কত সেকেন্ডে বন্ধ হবে (লেখায় পরিষ্কার)
+                    Positioned(
+                      left: 10,
+                      top: 10,
+                      child: AnimatedBuilder(
+                        animation: _c,
+                        builder: (_, __) {
+                          final left = (_secs - _c.value * _secs).ceil().clamp(1, _secs);
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
+                            child: Text('${bn(left)} সেকেন্ডে বন্ধ হবে', style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w700)),
+                          );
+                        },
+                      ),
+                    ),
+                    Positioned(
+                      right: 6,
+                      top: 6,
+                      child: IconButton.filled(
+                        style: IconButton.styleFrom(backgroundColor: Colors.black54, foregroundColor: Colors.white),
+                        tooltip: 'বন্ধ করুন',
+                        icon: const Icon(Icons.close),
+                        onPressed: _close,
+                      ),
+                    ),
+                  ]),
+                  if (p.title.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 16, 18, 4),
+                      child: Text(p.title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, height: 1.3)),
+                    ),
+                  if (p.text.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 4, 18, 8),
+                      child: Text(p.text, textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, height: 1.45)),
+                    ),
+                  if (p.link.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 8, 18, 16),
+                      child: FilledButton(onPressed: _go, child: Text(p.button)),
+                    )
+                  else
+                    const SizedBox(height: 14),
+                  // নিচে কমতে থাকা সময়ের রেখা
+                  AnimatedBuilder(
+                    animation: _c,
+                    builder: (_, __) => LinearProgressIndicator(value: 1 - _c.value, minHeight: 4, color: primary, backgroundColor: primary.withAlpha(30)),
+                  ),
+                ]),
               ),
             ),
-          ]),
-          if (p.title.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-              child: Text(p.title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
-            ),
-          if (p.text.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-              child: Text(p.text, textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, height: 1.45)),
-            ),
-          if (p.link.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
-              child: FilledButton(
-                onPressed: () {
-                  Navigator.of(ctx).pop();
-                  openLink(p.link);
-                },
-                child: Text(p.button),
-              ),
-            )
-          else
-            const SizedBox(height: 12),
-        ]),
+          ),
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 

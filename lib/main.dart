@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'api.dart';
 import 'config.dart';
 import 'dynamic_ui.dart';
@@ -8,6 +9,8 @@ import 'models.dart';
 import 'fake_stats.dart';
 import 'notifications.dart';
 import 'rewards/reward_api.dart';
+import 'saved.dart';
+import 'splash.dart';
 import 'screens/category_screen.dart';
 import 'screens/epaper_screen.dart';
 import 'screens/home_screen.dart';
@@ -26,6 +29,7 @@ Future<void> main() async {
   }
   await FakeStats.load();
   await RewardApi.init();
+  await SavedStore.load();
   unawaited(RewardApi.loadConfig());
   runApp(const NewsApp());
   // নোটিফিকেশন: অনুমতি চাওয়া + ব্যাকগ্রাউন্ডে নতুন নিউজ/ভিডিও দেখা (অ্যাপ বন্ধ থাকলেও)
@@ -73,6 +77,9 @@ ThemeData _buildTheme(AppSettings s, Brightness b) {
     snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12)),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
     ),
     dividerTheme: DividerThemeData(color: fg.withAlpha(30), space: 1),
     navigationBarTheme: NavigationBarThemeData(
@@ -144,10 +151,13 @@ class _NewsAppState extends State<NewsApp> with WidgetsBindingObserver {
           final sys = mq.textScaler.scale(10) / 10;
           return MediaQuery(
             data: mq.copyWith(textScaler: TextScaler.linear(sys * s.theme.fontScale)),
-            child: child ?? const SizedBox.shrink(),
+            child: ScrollConfiguration(
+              behavior: const MaterialScrollBehavior().copyWith(physics: const BouncingScrollPhysics()),
+              child: child ?? const SizedBox.shrink(),
+            ),
           );
         },
-        home: const Shell(),
+        home: const SplashGate(child: Shell()),
       ),
     );
   }
@@ -165,6 +175,7 @@ class _ShellState extends State<Shell> {
   String _cur = 'home';
   // পেজগুলো প্রথমবার ট্যাপ করলেই লোড হয় (অকারণে সার্ভারে রিকোয়েস্ট যায় না)
   final Map<String, Widget> _pages = {};
+  DateTime? _lastBack;
 
   @override
   void initState() {
@@ -234,6 +245,22 @@ class _ShellState extends State<Shell> {
     }
   }
 
+  void _onBack() {
+    if (_cur != 'home') {
+      _select('home', '');
+      return;
+    }
+    final now = DateTime.now();
+    if (_lastBack != null && now.difference(_lastBack!) < const Duration(seconds: 2)) {
+      SystemNavigator.pop();
+      return;
+    }
+    _lastBack = now;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('বের হতে আবার ব্যাক চাপুন'), duration: Duration(seconds: 2)));
+  }
+
   /// নিচের বার বা ওপরের ট্যাব — যেখানেই ট্যাপ হোক
   void _select(String type, String target) {
     final s = AppSettings.current;
@@ -287,7 +314,12 @@ class _ShellState extends State<Shell> {
     final bi = bottom.indexWhere((i) => pageKeyOf(i.type, i.target) == _cur);
     final sel = bi < 0 ? 0 : bi;
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _onBack();
+      },
+      child: Scaffold(
       body: IndexedStack(
         index: keys.indexOf(_cur),
         children: [for (final k in keys) _pages[k] ?? const SizedBox.shrink()],
@@ -307,6 +339,7 @@ class _ShellState extends State<Shell> {
                   ),
               ],
             ),
+    ),
     );
   }
 }
