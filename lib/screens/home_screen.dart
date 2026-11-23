@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../api.dart';
+import '../config.dart';
 import '../fake_stats.dart';
 import '../dynamic_ui.dart';
 import '../models.dart';
@@ -86,23 +87,31 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!s.on) continue;
       switch (s.type) {
         case 'chips':
-          if (d.categories.isEmpty) break;
+          final cats = mainCats(d.categories);
+          if (cats.isEmpty) break;
           children.add(SizedBox(
-            height: 52,
+            height: 54,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              itemCount: d.categories.length,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              itemCount: cats.length,
               separatorBuilder: (_, __) => const SizedBox(width: 8),
               itemBuilder: (_, i) {
-                final c = d.categories[i];
+                final c = cats[i];
                 final pc = Theme.of(context).colorScheme.primary;
-                return ActionChip(
-                  label: Text(c.name, style: TextStyle(color: pc, fontWeight: FontWeight.w600)),
-                  backgroundColor: pc.withAlpha(18),
-                  side: BorderSide(color: pc.withAlpha(60)),
-                  shape: const StadiumBorder(),
-                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CategoryScreen(category: c))),
+                return InkWell(
+                  borderRadius: BorderRadius.circular(22),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CategoryScreen(category: c))),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 17),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(22),
+                      gradient: LinearGradient(colors: [pc.withAlpha(34), pc.withAlpha(12)]),
+                      border: Border.all(color: pc.withAlpha(75)),
+                    ),
+                    child: Text(c.name, style: TextStyle(color: pc, fontWeight: FontWeight.w800, fontSize: 14.5)),
+                  ),
                 );
               },
             ),
@@ -188,6 +197,12 @@ class _HomeScreenState extends State<HomeScreen> {
           break;
       }
     }
+    // মূল ক্যাটাগরির খবর: ক্যাটাগরির নামসহ কয়েকটি করে (অ্যাডমিনের সেকশনে যেগুলো আছে সেগুলো বাদ)
+    final usedIds = AppSettings.current.sections.where((x) => x.on && x.type == 'category').map((x) => x.category).toSet();
+    for (final c in mainCats(d.categories).take(AppConfig.homeCategoryBlocks)) {
+      if (usedIds.contains(c.id)) continue;
+      children.add(CategoryHomeBlock(category: c));
+    }
     children.add(const SizedBox(height: 24));
     children.add(const AppFooter());
 
@@ -216,5 +231,60 @@ class CategorySection extends StatelessWidget {
         return Column(children: list.map((n) => NewsCard(n, style: style)).toList());
       },
     );
+  }
+}
+
+
+/// হোমের ওপরের চিপ ও নিচের সেকশনের জন্য শুধু মূল ক্যাটাগরি (AppConfig.mainCategories এর ক্রমে)
+List<Category> mainCats(List<Category> all) {
+  final picked = <Category>[];
+  for (final n in AppConfig.mainCategories) {
+    for (final c in all) {
+      if (c.name.trim() == n) {
+        picked.add(c);
+        break;
+      }
+    }
+  }
+  if (picked.length >= 3) return picked;
+  final hidden = AppConfig.hiddenCategories.toSet();
+  final rest = all.where((c) => !hidden.contains(c.name.trim()) && c.count > 0).toList()..sort((a, b) => b.count.compareTo(a.count));
+  return rest.take(6).toList();
+}
+
+/// হোমের নিচে: ক্যাটাগরির নাম + "আরও" বাটন + কয়েকটি খবর
+class CategoryHomeBlock extends StatelessWidget {
+  final Category category;
+  const CategoryHomeBlock({super.key, required this.category});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Theme.of(context).colorScheme.primary;
+    void openAll() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CategoryScreen(category: category)));
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(14, 22, 6, 6),
+        child: Row(children: [
+          Container(
+            width: 5,
+            height: 26,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(3),
+              gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [c, Color.lerp(c, Colors.redAccent, 0.55)!]),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(child: Text(category.name, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800))),
+          TextButton(
+            onPressed: openAll,
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text('আরও খবর', style: TextStyle(color: c, fontWeight: FontWeight.w800)),
+              Icon(Icons.chevron_right, color: c, size: 20),
+            ]),
+          ),
+        ]),
+      ),
+      CategorySection(categoryId: category.id, count: AppConfig.homeCategoryCount),
+    ]);
   }
 }

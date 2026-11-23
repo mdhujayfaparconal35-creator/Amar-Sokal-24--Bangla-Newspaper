@@ -36,6 +36,15 @@ class Notifier {
   static const _kVideos = 'notif_seen_videos';
   static const _kHist = 'notif_hist';
 
+  /// আজকের (ফোনের তারিখ অনুযায়ী) কয়টি নিউজ/ভিডিও নোটিফিকেশন তালিকায় এসেছে; পরের দিন আবার ০ থেকে শুরু
+  static int todayCount([List<NotifEntry>? l]) {
+    final now = DateTime.now();
+    return (l ?? history.value).where((e) {
+      final d = DateTime.tryParse(e.date);
+      return d != null && d.year == now.year && d.month == now.month && d.day == now.day;
+    }).length;
+  }
+
   static Future<void> start() => SysNotify.start();
 
   static Future<bool> isOn() async {

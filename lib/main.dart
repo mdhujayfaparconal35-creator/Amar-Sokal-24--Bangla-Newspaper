@@ -29,6 +29,7 @@ Future<void> main() async {
   unawaited(RewardApi.loadConfig());
   runApp(const NewsApp());
   // নোটিফিকেশন: অনুমতি চাওয়া + ব্যাকগ্রাউন্ডে নতুন নিউজ/ভিডিও দেখা (অ্যাপ বন্ধ থাকলেও)
+  Notifier.loadHistory();
   Notifier.start().then((_) => Notifier.checkNew());
 }
 
@@ -100,7 +101,10 @@ class _NewsAppState extends State<NewsApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     // অ্যাপ খোলা থাকলে প্রতি ৩ মিনিটে নতুন নিউজ/ভিডিও দেখে
-    _notifTimer = Timer.periodic(const Duration(minutes: 3), (_) => Notifier.checkNew());
+    _notifTimer = Timer.periodic(const Duration(minutes: 3), (_) {
+      Notifier.loadHistory(); // দিন বদলালে নোটিফিকেশনের সংখ্যা ০ থেকে শুরু
+      Notifier.checkNew();
+    });
     // ক্যাশ দিয়ে চালু হলে পেছনে নতুন version আছে কিনা দেখা
     if (ConfigStore.hasCache) ConfigStore.refresh();
     _timer = Timer.periodic(const Duration(minutes: AppConfig.configRefreshMinutes), (_) => ConfigStore.refreshIfStale());
@@ -118,6 +122,7 @@ class _NewsAppState extends State<NewsApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       ConfigStore.refreshIfStale();
+      Notifier.loadHistory();
       Notifier.checkNew();
     }
   }

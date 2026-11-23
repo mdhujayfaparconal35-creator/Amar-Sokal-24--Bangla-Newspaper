@@ -51,6 +51,55 @@ void rewardSnack(BuildContext c, String m) {
   ScaffoldMessenger.of(c).showSnackBar(SnackBar(content: Text(m)));
 }
 
+
+/// সোনালি কয়েন (ড্যাশবোর্ড, হেডার ও অন্যত্র)
+Widget rewardCoin(double size) => Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFFFFE082), Color(0xFFFFA000)]),
+        border: Border.all(color: const Color(0xFFFFF3C4), width: size * 0.06),
+        boxShadow: [BoxShadow(color: Colors.black.withAlpha(60), blurRadius: size * 0.22, offset: Offset(0, size * 0.08))],
+      ),
+      child: Icon(Icons.star_rounded, size: size * 0.6, color: const Color(0xFFB26A00)),
+    );
+
+/// হেডারের কয়েন-পিল: লগইন না থাকলে "কয়েন জিতুন", থাকলে ব্যালেন্স
+class CoinPill extends StatelessWidget {
+  const CoinPill({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    if (ri(RewardApi.cfg['open']) == 0) return const SizedBox.shrink();
+    return ValueListenableBuilder<Map<String, dynamic>?>(
+      valueListenable: RewardApi.me,
+      builder: (context, me, _) {
+        final label = me == null ? 'কয়েন জিতুন' : '${bn(ri(me['coins']))} কয়েন';
+        return Padding(
+          padding: const EdgeInsets.only(right: 6),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(22),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RewardScreen())),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(5, 4, 11, 4),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(22),
+                gradient: const LinearGradient(colors: [Color(0xFFFFE082), Color(0xFFFFB300)]),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                rewardCoin(22),
+                const SizedBox(width: 5),
+                Text(label, style: const TextStyle(color: Color(0xFF2B1B00), fontWeight: FontWeight.w800, fontSize: 12.5)),
+              ]),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 /// রিওয়ার্ডের মূল পেজ: লগইন না থাকলে লগইন/রেজিস্টার, থাকলে ড্যাশবোর্ড
 class RewardScreen extends StatelessWidget {
   const RewardScreen({super.key});
@@ -116,15 +165,25 @@ class _AuthViewState extends State<_AuthView> {
     return Scaffold(
       appBar: AppBar(title: const Text('রিওয়ার্ড কয়েন')),
       body: ListView(padding: const EdgeInsets.all(20), children: [
-        Icon(Icons.monetization_on_rounded, size: 72, color: Colors.amber.shade700),
-        const SizedBox(height: 10),
-        Text('খবর পড়ুন, কয়েন জিতুন!',
-            textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        Text(
-          '${bn(ri(cfg['read_seconds']))} সেকেন্ড খবর পড়লে ${bn(ri(cfg['read_coin']))} কয়েন, ফেসবুকে শেয়ার করলে ${bn(ri(cfg['share_coin']))} কয়েন। '
-          '${bn(ri(cfg['coins_per_taka']))} কয়েন = ১ টাকা, বিকাশে তুলুন।',
-          textAlign: TextAlign.center,
+        Container(
+          padding: const EdgeInsets.fromLTRB(20, 26, 20, 24),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(26),
+            gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF000B3F), Color(0xFF1B2C85), Color(0xFF45208A)]),
+            boxShadow: [BoxShadow(color: AppConfig.brand.withAlpha(90), blurRadius: 22, offset: const Offset(0, 10))],
+          ),
+          child: Column(children: [
+            rewardCoin(70),
+            const SizedBox(height: 14),
+            const Text('খবর পড়ুন, কয়েন জিতুন!', textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 10),
+            Text(
+              '${bn(ri(cfg['read_seconds']))} সেকেন্ড খবর পড়লে ${bn(ri(cfg['read_coin']))} কয়েন, ফেসবুকে শেয়ার করলে ${bn(ri(cfg['share_coin']))} কয়েন। '
+              '${bn(ri(cfg['coins_per_taka']))} কয়েন = ১ টাকা, বিকাশে তুলুন।',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70, height: 1.45),
+            ),
+          ]),
         ),
         const SizedBox(height: 22),
         if (_reg) ...[
@@ -189,6 +248,8 @@ class _DashboardState extends State<_Dashboard> {
     }
   }
 
+  void _history() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RewardHistoryScreen()));
+
   Future<void> _withdraw(Map<String, dynamic> m, Map<String, dynamic> cfg) async {
     final cpt = max(1, ri(cfg['coins_per_taka']));
     final coins = ri(m['coins']);
@@ -199,10 +260,16 @@ class _DashboardState extends State<_Dashboard> {
     final no = await showDialog<String>(
       context: context,
       builder: (c) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         title: const Text('বিকাশে টাকা তুলুন'),
         content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('${bn(payCoins)} কয়েন = ৳${bn(payTaka)} টাকা', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
-          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.amber.withAlpha(40), borderRadius: BorderRadius.circular(14)),
+            child: Text('${bn(payCoins)} কয়েন = ${bn(payTaka)} টাকা', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+          ),
+          const SizedBox(height: 14),
           TextField(
             controller: ctl,
             keyboardType: TextInputType.phone,
@@ -236,17 +303,8 @@ class _DashboardState extends State<_Dashboard> {
       appBar: AppBar(
         title: const Text('রিওয়ার্ড কয়েন'),
         actions: [
-          IconButton(
-            tooltip: 'ইতিহাস',
-            icon: const Icon(Icons.receipt_long_outlined),
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RewardHistoryScreen())),
-          ),
-          PopupMenuButton<String>(
-            onSelected: (v) async {
-              if (v == 'out') await RewardApi.logout();
-            },
-            itemBuilder: (_) => const [PopupMenuItem(value: 'out', child: Text('লগআউট'))],
-          ),
+          TextButton(onPressed: _history, child: const Text('স্টেটমেন্ট', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16))),
+          const SizedBox(width: 6),
         ],
       ),
       body: ValueListenableBuilder<Map<String, dynamic>?>(
@@ -267,20 +325,51 @@ class _DashboardState extends State<_Dashboard> {
     );
   }
 
-  Widget _bar(String label, int v, int max, Color color) {
-    final p = max <= 0 ? 0.0 : (v / max).clamp(0.0, 1.0).toDouble();
+  Widget _card(BuildContext context, {required Widget child}) {
+    final t = Theme.of(context);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: t.cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: t.colorScheme.outlineVariant.withAlpha(120)),
+        boxShadow: [BoxShadow(color: Colors.black.withAlpha(14), blurRadius: 14, offset: const Offset(0, 5))],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _bar(String label, String right, double p, Color color) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Expanded(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
-          Text('${bn(v)} / ${bn(max)}'),
+          Expanded(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15))),
+          Text(right, style: TextStyle(fontWeight: FontWeight.w800, color: color)),
         ]),
-        const SizedBox(height: 5),
-        ClipRRect(borderRadius: BorderRadius.circular(6), child: LinearProgressIndicator(value: p, minHeight: 8, color: color)),
+        const SizedBox(height: 7),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: LinearProgressIndicator(value: p.clamp(0.0, 1.0).toDouble(), minHeight: 10, color: color, backgroundColor: color.withAlpha(30)),
+        ),
       ]),
     );
   }
+
+  Widget _rule(IconData i, Color c, String t) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(color: c.withAlpha(30), shape: BoxShape.circle),
+            child: Icon(i, size: 20, color: c),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Padding(padding: const EdgeInsets.only(top: 2), child: Text(t, style: const TextStyle(height: 1.4)))),
+        ]),
+      );
 
   Widget _body(BuildContext context, Map<String, dynamic> m) {
     final cfg = m['config'] is Map ? Map<String, dynamic>.from(m['config'] as Map) : RewardApi.cfg;
@@ -291,120 +380,139 @@ class _DashboardState extends State<_Dashboard> {
     final minCoins = ri(m['min_coins']);
     final open = ri(cfg['open']) != 0;
     final notice = '${cfg['notice'] ?? ''}'.trim();
-    final shareCoin = ri(cfg['share_coin']);
-    final cs = Theme.of(context).colorScheme;
+    final readMax = ri(cfg['read_daily_max']);
+    final shareMax = ri(cfg['share_daily_max']);
+    final readToday = ri(m['today_read']);
+    final sharesToday = ri(m['shares_today']);
+    final canWithdraw = wd == null && open && coins > 0 && coins >= minCoins;
 
-    return ListView(padding: const EdgeInsets.all(16), children: [
+    String wdLabel;
+    if (wd != null) {
+      wdLabel = 'উত্তোলন চলমান';
+    } else if (canWithdraw) {
+      wdLabel = 'বিকাশে টাকা তুলুন';
+    } else {
+      wdLabel = 'আরও ${bn(max(0, minCoins - coins))} কয়েন লাগবে';
+    }
+
+    return ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 28), children: [
       if (!open)
         Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: Colors.red.withAlpha(25), borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: Colors.red.withAlpha(25), borderRadius: BorderRadius.circular(14)),
           child: const Text('রিওয়ার্ড সিস্টেম এখন সাময়িক বন্ধ আছে।'),
         ),
       if (notice.isNotEmpty)
         Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: Colors.amber.withAlpha(40), borderRadius: BorderRadius.circular(12)),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Icon(Icons.campaign_outlined, size: 20),
-            const SizedBox(width: 8),
-            Expanded(child: Text(notice)),
-          ]),
+          decoration: BoxDecoration(color: Colors.amber.withAlpha(45), borderRadius: BorderRadius.circular(14)),
+          child: Text(notice, style: const TextStyle(height: 1.4)),
         ),
       // ব্যালেন্স কার্ড
       Container(
-        padding: const EdgeInsets.all(18),
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          gradient: LinearGradient(colors: [AppConfig.brand, Color.lerp(AppConfig.brand, Colors.white, 0.2)!]),
+          borderRadius: BorderRadius.circular(26),
+          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF000B3F), Color(0xFF1B2C85), Color(0xFF45208A)]),
+          boxShadow: [BoxShadow(color: AppConfig.brand.withAlpha(100), blurRadius: 24, offset: const Offset(0, 12))],
         ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('স্বাগতম, ${user['name'] ?? ''}', style: const TextStyle(color: Colors.white70, fontSize: 15)),
-          const SizedBox(height: 10),
-          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Icon(Icons.monetization_on_rounded, color: Colors.amber.shade400, size: 34),
-            const SizedBox(width: 8),
-            Text(bn(coins), style: const TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.bold, height: 1)),
-            const SizedBox(width: 8),
-            const Padding(padding: EdgeInsets.only(bottom: 5), child: Text('কয়েন', style: TextStyle(color: Colors.white, fontSize: 17))),
-          ]),
-          const SizedBox(height: 8),
-          Text('≈ ৳${_taka(m['taka'])} টাকা', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
-          if (pend > 0) ...[
-            const SizedBox(height: 6),
-            Text('যাচাইয়ের অপেক্ষায় শেয়ার: ${bn(pend)} কয়েন', style: const TextStyle(color: Colors.white70, fontSize: 14)),
-          ],
+        child: Stack(children: [
+          Positioned(right: -34, top: -34, child: _circle(150, Colors.white.withAlpha(16))),
+          Positioned(left: -26, bottom: -50, child: _circle(130, Colors.amber.withAlpha(26))),
+          Padding(
+            padding: const EdgeInsets.all(22),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('স্বাগতম, ${user['name'] ?? ''}', style: const TextStyle(color: Colors.white70, fontSize: 15)),
+              const SizedBox(height: 12),
+              Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                rewardCoin(52),
+                const SizedBox(width: 14),
+                Text(bn(coins), style: const TextStyle(color: Colors.white, fontSize: 50, fontWeight: FontWeight.w800, height: 1)),
+                const SizedBox(width: 8),
+                const Padding(padding: EdgeInsets.only(top: 18), child: Text('কয়েন', style: TextStyle(color: Colors.white, fontSize: 18))),
+              ]),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                decoration: BoxDecoration(color: Colors.white.withAlpha(32), borderRadius: BorderRadius.circular(22)),
+                child: Text('সমপরিমাণ ${_taka(m['taka'])} টাকা', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+              ),
+              if (pend > 0) ...[
+                const SizedBox(height: 10),
+                Text('যাচাইয়ের অপেক্ষায় শেয়ার: ${bn(pend)} কয়েন', style: const TextStyle(color: Colors.white70, fontSize: 14)),
+              ],
+            ]),
+          ),
         ]),
       ),
-      const SizedBox(height: 16),
-      // আজকের অগ্রগতি
-      Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide(color: cs.outlineVariant)),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('আজকের অগ্রগতি', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 12),
-            _bar('খবর পড়ে কয়েন', ri(m['today_read']), ri(cfg['read_daily_max']), cs.primary),
-            _bar('ফেসবুক শেয়ার জমা', ri(m['shares_today']), ri(cfg['share_daily_max']), Colors.green.shade600),
-          ]),
+      const SizedBox(height: 14),
+      // বাটন: টাকা তোলা ও স্টেটমেন্ট (আইকন নয়, পরিষ্কার লেখা)
+      Row(children: [
+        Expanded(
+          child: FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFFFB300), foregroundColor: const Color(0xFF2B1B00), minimumSize: const Size.fromHeight(54)),
+            onPressed: (_busy || !canWithdraw) ? null : () => _withdraw(m, cfg),
+            child: _busy
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.4))
+                : Text(wdLabel, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+          ),
         ),
-      ),
-      const SizedBox(height: 12),
-      // নিয়ম
-      Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide(color: cs.outlineVariant)),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('কীভাবে কয়েন পাবেন', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 8),
-            _rule(Icons.menu_book_outlined, 'যেকোনো খবর খুলে ${bn(ri(cfg['read_seconds']))} সেকেন্ড পড়লে ${bn(ri(cfg['read_coin']))} কয়েন (দিনে সর্বোচ্চ ${bn(ri(cfg['read_daily_max']))})'),
-            _rule(Icons.share_outlined, 'ফেসবুকে শেয়ার করে স্ক্রিনশট জমা দিলে ${bn(shareCoin)} কয়েন (অ্যাডমিন যাচাইয়ের পর)'),
-            _rule(Icons.currency_exchange, '${bn(ri(cfg['coins_per_taka']))} কয়েন = ১ টাকা; ন্যূনতম ৳${bn(ri(cfg['min_withdraw']))} হলে বিকাশে তুলতে পারবেন'),
-          ]),
+        const SizedBox(width: 12),
+        Expanded(
+          child: OutlinedButton(
+            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(54), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+            onPressed: _history,
+            child: const Text('স্টেটমেন্ট ও ইতিহাস', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+          ),
         ),
-      ),
+      ]),
       const SizedBox(height: 16),
-      // উত্তোলন
       if (wd != null)
         Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: _statusColor('${wd['status']}').withAlpha(25), borderRadius: BorderRadius.circular(14)),
+          margin: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(color: _statusColor('${wd['status']}').withAlpha(26), borderRadius: BorderRadius.circular(18), border: Border.all(color: _statusColor('${wd['status']}').withAlpha(80))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('চলমান উত্তোলন: ৳${_taka(wd['taka'])} • ${_statusLabel('${wd['status']}')}', style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text('চলমান উত্তোলন: ${_taka(wd['taka'])} টাকা', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
             const SizedBox(height: 4),
+            Text('অবস্থা: ${_statusLabel('${wd['status']}')}', style: TextStyle(color: _statusColor('${wd['status']}'), fontWeight: FontWeight.w800)),
+            const SizedBox(height: 2),
             Text('বিকাশ ${wd['bkash'] ?? ''} • ${_dt(wd['created'])}', style: const TextStyle(fontSize: 13)),
           ]),
-        )
-      else if (coins >= minCoins && coins > 0)
-        FilledButton.icon(
-          onPressed: (_busy || !open) ? null : () => _withdraw(m, cfg),
-          icon: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.2)) : const Icon(Icons.account_balance_wallet_outlined),
-          label: const Text('বিকাশে টাকা তুলুন'),
-        )
-      else
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: cs.surfaceContainerHighest.withAlpha(120), borderRadius: BorderRadius.circular(14)),
-          child: Text('টাকা তুলতে আরও ${bn(max(0, minCoins - coins))} কয়েন লাগবে (ন্যূনতম ${bn(minCoins)} কয়েন)।'),
         ),
-      const SizedBox(height: 24),
+      // আজকের অগ্রগতি
+      _card(
+        context,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('আজকের অগ্রগতি', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
+          const SizedBox(height: 14),
+          _bar('খবর পড়ে কয়েন', '${bn(readToday)} / ${bn(readMax)}', readMax <= 0 ? 0 : readToday / readMax, Theme.of(context).colorScheme.primary),
+          _bar('ফেসবুক শেয়ার জমা', '${bn(sharesToday)} / ${bn(shareMax)}', shareMax <= 0 ? 0 : sharesToday / shareMax, Colors.green.shade600),
+        ]),
+      ),
+      // নিয়ম
+      _card(
+        context,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('কীভাবে কয়েন পাবেন', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
+          const SizedBox(height: 8),
+          _rule(Icons.menu_book_outlined, Colors.blue.shade700, 'যেকোনো খবর খুলে ${bn(ri(cfg['read_seconds']))} সেকেন্ড পড়লে ${bn(ri(cfg['read_coin']))} কয়েন (দিনে সর্বোচ্চ ${bn(readMax)} কয়েন)'),
+          _rule(Icons.share_outlined, Colors.green.shade700, 'ফেসবুকে শেয়ার করে স্ক্রিনশট জমা দিলে ${bn(ri(cfg['share_coin']))} কয়েন (অ্যাডমিন যাচাইয়ের পর)'),
+          _rule(Icons.account_balance_wallet_outlined, Colors.pink.shade600, '${bn(ri(cfg['coins_per_taka']))} কয়েন = ১ টাকা। ন্যূনতম ${bn(ri(cfg['min_withdraw']))} টাকা হলে বিকাশে তুলতে পারবেন'),
+        ]),
+      ),
+      Center(
+        child: TextButton(
+          onPressed: () => RewardApi.logout(),
+          child: Text('লগআউট', style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.w700)),
+        ),
+      ),
     ]);
   }
 
-  Widget _rule(IconData i, String t) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 5),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(i, size: 20),
-          const SizedBox(width: 10),
-          Expanded(child: Text(t)),
-        ]),
-      );
+  Widget _circle(double d, Color c) => Container(width: d, height: d, decoration: BoxDecoration(color: c, shape: BoxShape.circle));
 }
 
 // ---------------------------------------------------------------- ইতিহাস
@@ -417,8 +525,8 @@ class RewardHistoryScreen extends StatelessWidget {
       length: 3,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('ইতিহাস'),
-          bottom: const TabBar(tabs: [Tab(text: 'কয়েন'), Tab(text: 'শেয়ার'), Tab(text: 'উত্তোলন')]),
+          title: const Text('স্টেটমেন্ট ও ইতিহাস'),
+          bottom: const TabBar(tabs: [Tab(text: 'কয়েনের হিসাব'), Tab(text: 'শেয়ারের অবস্থা'), Tab(text: 'টাকা তোলা')]),
         ),
         body: TabBarView(children: [
           _HistoryList(loader: RewardApi.ledger, tile: _ledgerTile, empty: 'এখনো কোনো কয়েন যোগ হয়নি।'),
@@ -457,7 +565,7 @@ class RewardHistoryScreen extends StatelessWidget {
     final st = '${r['status']}';
     final extra = ['${r['txn'] ?? ''}'.trim(), '${r['note'] ?? ''}'.trim()].where((e) => e.isNotEmpty).join(' • ');
     return ListTile(
-      title: Text('৳${_taka(r['taka'])} (${bn(ri(r['coins']))} কয়েন)'),
+      title: Text('${_taka(r['taka'])} টাকা (${bn(ri(r['coins']))} কয়েন)'),
       subtitle: Text(['বিকাশ ${r['bkash'] ?? ''}', _dt(r['created']), if (extra.isNotEmpty) extra].join('\n')),
       isThreeLine: true,
       trailing: Text(_statusLabel(st), style: TextStyle(color: _statusColor(st), fontWeight: FontWeight.bold)),

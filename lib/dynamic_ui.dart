@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart';
 import 'config.dart';
 import 'models.dart';
+import 'notifications.dart';
 import 'rewards/reward_api.dart';
 import 'rewards/reward_screens.dart';
 import 'util.dart';
@@ -523,9 +524,15 @@ class TopTabBar extends StatelessWidget implements PreferredSizeWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    it.iconUrl.isNotEmpty
-                        ? NetImage(it.iconUrl, width: 26, height: 26, fit: BoxFit.contain)
-                        : Icon(iconFor(it.icon), size: 26, color: col),
+                    it.type == 'notifications'
+                        ? NotifBadge(
+                            child: it.iconUrl.isNotEmpty
+                                ? NetImage(it.iconUrl, width: 26, height: 26, fit: BoxFit.contain)
+                                : Icon(iconFor(it.icon), size: 26, color: col),
+                          )
+                        : (it.iconUrl.isNotEmpty
+                            ? NetImage(it.iconUrl, width: 26, height: 26, fit: BoxFit.contain)
+                            : Icon(iconFor(it.icon), size: 26, color: col)),
                     if (showLabel)
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
@@ -579,6 +586,7 @@ Widget hdrBtn(BuildContext context, IconData icon, String tip, VoidCallback onTa
 /// হেডারের ডানে সার্চ ও হ্যামবার্গার মেনু বাটন (সবসময় ডানে, কালবেলা স্টাইল)।
 /// ড্রয়ারওয়ালা Scaffold এর ভেতরে থাকতে হবে।
 List<Widget> headerActions({bool search = true}) => [
+      const CoinPill(),
       if (search)
         Builder(
           builder: (c) => hdrBtn(c, Icons.search, 'সার্চ', () => Navigator.of(c).push(MaterialPageRoute(builder: (_) => const SearchScreen()))),
@@ -649,6 +657,41 @@ class ShellScaffold extends StatelessWidget {
           ),
           body: body,
         );
+      },
+    );
+  }
+}
+
+
+/// "নোটিফিকেশন" ট্যাবের আইকনে আজকের নতুন নিউজের সংখ্যা (লাল ব্যাজ); পরের দিন আবার শূন্য থেকে
+class NotifBadge extends StatelessWidget {
+  final Widget child;
+  const NotifBadge({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<List<NotifEntry>>(
+      valueListenable: Notifier.history,
+      builder: (context, list, _) {
+        final n = Notifier.todayCount(list);
+        return Stack(clipBehavior: Clip.none, children: [
+          child,
+          if (n > 0)
+            Positioned(
+              right: -10,
+              top: -7,
+              child: Container(
+                constraints: const BoxConstraints(minWidth: 18),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade600,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white, width: 1.6),
+                ),
+                child: Text(n > 99 ? '৯৯+' : bn(n), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w800, height: 1.2)),
+              ),
+            ),
+        ]);
       },
     );
   }
