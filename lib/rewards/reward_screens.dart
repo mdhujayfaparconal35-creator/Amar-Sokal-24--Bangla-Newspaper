@@ -2,6 +2,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../config.dart';
 import '../util.dart';
+import '../rep/rep_api.dart';
+import '../rep/rep_screens.dart';
 import 'reward_api.dart';
 
 String _dt(dynamic v) {
@@ -72,10 +74,12 @@ class CoinPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (ri(RewardApi.cfg['open']) == 0) return const SizedBox.shrink();
-    return ValueListenableBuilder<Map<String, dynamic>?>(
+    return ValueListenableBuilder<bool>(
+      valueListenable: RepApi.loggedIn,
+      builder: (context, _, __) => ValueListenableBuilder<Map<String, dynamic>?>(
       valueListenable: RewardApi.me,
       builder: (context, me, _) {
-        final label = me == null ? 'কয়েন জিতুন' : '${bn(ri(me['coins']))} কয়েন';
+        final label = RepApi.loggedIn.value ? 'প্রতিনিধি' : (me == null ? 'কয়েন জিতুন' : '${bn(ri(me['coins']))} কয়েন');
         return Padding(
           padding: const EdgeInsets.only(right: 6),
           child: InkWell(
@@ -96,6 +100,7 @@ class CoinPill extends StatelessWidget {
           ),
         );
       },
+      ),
     );
   }
 }
@@ -106,9 +111,15 @@ class RewardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // প্রতিনিধি লগইন থাকলে প্রতিনিধি প্যানেল; নইলে ইউজারের রিওয়ার্ড (লগইন থাকলে ড্যাশবোর্ড, না থাকলে লগইন পেজ)
     return ValueListenableBuilder<bool>(
-      valueListenable: RewardApi.loggedIn,
-      builder: (context, on, _) => on ? const _Dashboard() : const _AuthView(),
+      valueListenable: RepApi.loggedIn,
+      builder: (context, isRep, _) => isRep
+          ? const RepHome()
+          : ValueListenableBuilder<bool>(
+              valueListenable: RewardApi.loggedIn,
+              builder: (context, on, _) => on ? const _Dashboard() : const _AuthView(),
+            ),
     );
   }
 }
@@ -126,6 +137,7 @@ class _AuthViewState extends State<_AuthView> {
   final _email = TextEditingController();
   final _pass = TextEditingController();
   bool _reg = false;
+  bool _rep = false; // false = ইউজার, true = প্রতিনিধি
   bool _busy = false;
   bool _hide = true;
 
@@ -135,6 +147,20 @@ class _AuthViewState extends State<_AuthView> {
     _email.dispose();
     _pass.dispose();
     super.dispose();
+  }
+
+  Widget _seg(String t, bool on, VoidCallback f) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return InkWell(
+      borderRadius: BorderRadius.circular(13),
+      onTap: f,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(color: on ? primary : Colors.transparent, borderRadius: BorderRadius.circular(13)),
+        child: Text(t, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: on ? Colors.white : primary)),
+      ),
+    );
   }
 
   Future<void> _submit() async {
@@ -186,35 +212,46 @@ class _AuthViewState extends State<_AuthView> {
           ]),
         ),
         const SizedBox(height: 22),
-        if (_reg) ...[
-          TextField(controller: _name, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'আপনার নাম', prefixIcon: Icon(Icons.person_outline), border: OutlineInputBorder())),
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(color: primary.withAlpha(20), borderRadius: BorderRadius.circular(16)),
+          child: Row(children: [
+            Expanded(child: _seg('ইউজার', !_rep, () => setState(() => _rep = false))),
+            Expanded(child: _seg('প্রতিনিধি', _rep, () => setState(() => _rep = true))),
+          ]),
+        ),
+        const SizedBox(height: 16),
+        if (_rep) const RepLoginForm() else ...[
+          if (_reg) ...[
+            TextField(controller: _name, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'আপনার নাম', prefixIcon: Icon(Icons.person_outline), border: OutlineInputBorder())),
+            const SizedBox(height: 12),
+          ],
+          TextField(controller: _email, keyboardType: TextInputType.emailAddress, autocorrect: false, decoration: const InputDecoration(labelText: 'ইমেইল', prefixIcon: Icon(Icons.email_outlined), border: OutlineInputBorder())),
           const SizedBox(height: 12),
-        ],
-        TextField(controller: _email, keyboardType: TextInputType.emailAddress, autocorrect: false, decoration: const InputDecoration(labelText: 'ইমেইল', prefixIcon: Icon(Icons.email_outlined), border: OutlineInputBorder())),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _pass,
-          obscureText: _hide,
-          decoration: InputDecoration(
-            labelText: 'পাসওয়ার্ড',
-            prefixIcon: const Icon(Icons.lock_outline),
-            border: const OutlineInputBorder(),
-            suffixIcon: IconButton(icon: Icon(_hide ? Icons.visibility_off : Icons.visibility), onPressed: () => setState(() => _hide = !_hide)),
+          TextField(
+            controller: _pass,
+            obscureText: _hide,
+            decoration: InputDecoration(
+              labelText: 'পাসওয়ার্ড',
+              prefixIcon: const Icon(Icons.lock_outline),
+              border: const OutlineInputBorder(),
+              suffixIcon: IconButton(icon: Icon(_hide ? Icons.visibility_off : Icons.visibility), onPressed: () => setState(() => _hide = !_hide)),
+            ),
           ),
-        ),
-        const SizedBox(height: 18),
-        FilledButton(
-          onPressed: _busy ? null : _submit,
-          child: _busy ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.4)) : Text(_reg ? 'অ্যাকাউন্ট খুলুন' : 'লগইন করুন'),
-        ),
-        const SizedBox(height: 6),
-        TextButton(
-          onPressed: _busy ? null : () => setState(() => _reg = !_reg),
-          child: Text(_reg ? 'আগেই অ্যাকাউন্ট আছে? লগইন করুন' : 'নতুন? অ্যাকাউন্ট খুলুন', style: TextStyle(color: primary)),
-        ),
-        if (ri(cfg['open']) == 0) ...[
-          const SizedBox(height: 8),
-          Text('রিওয়ার্ড সিস্টেম এখন বন্ধ আছে।', textAlign: TextAlign.center, style: TextStyle(color: Colors.red.shade700)),
+          const SizedBox(height: 18),
+          FilledButton(
+            onPressed: _busy ? null : _submit,
+            child: _busy ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.4)) : Text(_reg ? 'অ্যাকাউন্ট খুলুন' : 'লগইন করুন'),
+          ),
+          const SizedBox(height: 6),
+          TextButton(
+            onPressed: _busy ? null : () => setState(() => _reg = !_reg),
+            child: Text(_reg ? 'আগেই অ্যাকাউন্ট আছে? লগইন করুন' : 'নতুন? অ্যাকাউন্ট খুলুন', style: TextStyle(color: primary)),
+          ),
+          if (ri(cfg['open']) == 0) ...[
+            const SizedBox(height: 8),
+            Text('রিওয়ার্ড সিস্টেম এখন বন্ধ আছে।', textAlign: TextAlign.center, style: TextStyle(color: Colors.red.shade700)),
+          ],
         ],
       ]),
     );
@@ -232,11 +269,68 @@ class _Dashboard extends StatefulWidget {
 class _DashboardState extends State<_Dashboard> {
   String? _err;
   bool _busy = false;
+  bool _ckBusy = false;
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  Future<void> _checkin() async {
+    setState(() => _ckBusy = true);
+    try {
+      final j = await RewardApi.checkin();
+      final earned = ri(j['earned']);
+      final bonus = ri(j['bonus']);
+      rewardSnack(context, earned > 0 ? '+${bn(earned)} কয়েন পেয়েছেন${bonus > 0 ? ' (টানা ৭ দিনের বোনাসসহ)' : ''}' : 'আজকের চেক-ইন আগেই হয়ে গেছে।');
+    } on RewardError catch (e) {
+      rewardSnack(context, e.message);
+    } finally {
+      if (mounted) setState(() => _ckBusy = false);
+    }
+  }
+
+  Widget _checkinCard(BuildContext context, Map<String, dynamic> m) {
+    final ck = m['checkin'] is Map ? Map<String, dynamic>.from(m['checkin'] as Map) : null;
+    if (ck == null || ri(ck['on']) != 1) return const SizedBox.shrink();
+    final done = ri(ck['done_today']) == 1;
+    final streak = ri(ck['streak']);
+    final cyc = streak % 7;
+    final filled = done ? (cyc == 0 ? 7 : cyc) : cyc;
+    final coin = ri(ck['coin']);
+    final bonus = ri(ck['bonus']);
+    final primary = Theme.of(context).colorScheme.primary;
+    return _card(
+      context,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Expanded(child: Text('দৈনিক চেক-ইন', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17))),
+          Text('টানা ${bn(streak)} দিন', style: TextStyle(fontWeight: FontWeight.w800, color: primary)),
+        ]),
+        const SizedBox(height: 12),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          for (var i = 0; i < 7; i++)
+            Container(
+              width: 36,
+              height: 36,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: i < filled ? const Color(0xFFFFB300) : primary.withAlpha(22), border: i == 6 ? Border.all(color: const Color(0xFFFFB300), width: 2) : null),
+              child: Text(bn(i + 1), style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, color: i < filled ? const Color(0xFF2B1B00) : null)),
+            ),
+        ]),
+        const SizedBox(height: 10),
+        Text(bonus > 0 ? 'রোজ ${bn(coin)} কয়েন। টানা ৭ দিন হলে ${bn(bonus)} কয়েন বাড়তি বোনাস (আর ${bn(ri(ck['bonus_in_days']))} দিন)।' : 'রোজ ${bn(coin)} কয়েন।', style: const TextStyle(height: 1.4)),
+        const SizedBox(height: 12),
+        FilledButton(
+          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+          onPressed: (done || _ckBusy) ? null : _checkin,
+          child: _ckBusy
+              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.4))
+              : Text(done ? 'আজকের চেক-ইন সম্পন্ন' : 'চেক-ইন করুন (+${bn(coin)} কয়েন)', style: const TextStyle(fontWeight: FontWeight.w800)),
+        ),
+      ]),
+    );
   }
 
   Future<void> _load() async {
@@ -469,6 +563,7 @@ class _DashboardState extends State<_Dashboard> {
         ),
       ]),
       const SizedBox(height: 16),
+      _checkinCard(context, m),
       if (wd != null)
         Container(
           margin: const EdgeInsets.only(bottom: 14),

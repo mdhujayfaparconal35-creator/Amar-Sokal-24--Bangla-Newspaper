@@ -159,6 +159,13 @@ class RewardApi {
   static Future<Map<String, dynamic>> readStart(int postId) => _post('/read/start', {'post_id': '$postId'});
   static Future<Map<String, dynamic>> readClaim(int postId) => _post('/read/claim', {'post_id': '$postId'});
 
+  /// দৈনিক চেক-ইন (সার্ভারে দিনে একবারই কয়েন যোগ হয়)
+  static Future<Map<String, dynamic>> checkin() async {
+    final j = await _post('/checkin', {});
+    await refreshMe();
+    return j;
+  }
+
   static Future<Map<String, dynamic>> withdraw(String bkash) async {
     final j = await _post('/withdraw', {'bkash': bkash});
     await refreshMe();

@@ -7,6 +7,9 @@ class AppConfig {
   static const String apiBase = 'https://amarsokal24.com/wp-json/as-app/v1';
   /// ফুটারে দেখানো নাম (ফাঁকা রাখলে ওই লাইন দেখাবে না)
   static const String editorPublisher = 'বাদল সিকদার';
+  /// প্রতিনিধি অ্যাপের সার্ভার (T2) ও ফেসবুক রিলসের ঠিকানা
+  static const String t2Base = 'https://t2.astechnologiesltd.com';
+  static const String reelsUrl = 'https://www.facebook.com/amarsokal24news/reels/';
   static const String epaperUrl = 'https://epaper.amarsokal24.com/';
   static const String siteName = 'আমার সকাল ২৪';
 
@@ -19,7 +22,7 @@ class AppConfig {
   /// এই APK-র Build নম্বর (pubspec.yaml এর version এর + এর পরের সংখ্যা, যেমন 1.1.0+2 => 2)।
   /// নতুন Native ফিচার সহ APK বের করলে দুটোই একসাথে বাড়ান; অ্যাডমিনে "ন্যূনতম Build নম্বর" দিলে
   /// তার চেয়ে পুরনো অ্যাপে আপডেটের বার্তা আসবে।
-  static const int build = 13;
+  static const int build = 15;
 
   /// কনফিগ কত মিনিট পর পর নতুন আছে কিনা দেখবে (অ্যাপ খোলা অবস্থায়)।
   static const int configRefreshMinutes = 5;

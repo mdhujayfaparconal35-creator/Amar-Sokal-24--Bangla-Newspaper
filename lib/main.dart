@@ -9,8 +9,11 @@ import 'models.dart';
 import 'fake_stats.dart';
 import 'notifications.dart';
 import 'rewards/reward_api.dart';
+import 'rep/rep_api.dart';
 import 'saved.dart';
+import 'screens/reels_screen.dart';
 import 'splash.dart';
+import 'theme_pref.dart';
 import 'screens/category_screen.dart';
 import 'screens/epaper_screen.dart';
 import 'screens/home_screen.dart';
@@ -29,12 +32,17 @@ Future<void> main() async {
   }
   await FakeStats.load();
   await RewardApi.init();
+  await RepApi.init();
   await SavedStore.load();
+  await ThemePref.load();
   unawaited(RewardApi.loadConfig());
   runApp(const NewsApp());
   // নোটিফিকেশন: অনুমতি চাওয়া + ব্যাকগ্রাউন্ডে নতুন নিউজ/ভিডিও দেখা (অ্যাপ বন্ধ থাকলেও)
   Notifier.loadHistory();
-  Notifier.start().then((_) => Notifier.checkNew());
+  Notifier.start().then((_) {
+    Notifier.checkNew();
+    RepApi.pollAndShow();
+  });
 }
 
 ThemeData _buildTheme(AppSettings s, Brightness b) {
@@ -111,6 +119,7 @@ class _NewsAppState extends State<NewsApp> with WidgetsBindingObserver {
     _notifTimer = Timer.periodic(const Duration(minutes: 3), (_) {
       Notifier.loadHistory(); // দিন বদলালে নোটিফিকেশনের সংখ্যা ০ থেকে শুরু
       Notifier.checkNew();
+      RepApi.pollAndShow();
     });
     // ক্যাশ দিয়ে চালু হলে পেছনে নতুন version আছে কিনা দেখা
     if (ConfigStore.hasCache) ConfigStore.refresh();
@@ -131,6 +140,7 @@ class _NewsAppState extends State<NewsApp> with WidgetsBindingObserver {
       ConfigStore.refreshIfStale();
       Notifier.loadHistory();
       Notifier.checkNew();
+      RepApi.pollAndShow();
     }
   }
 
@@ -138,13 +148,15 @@ class _NewsAppState extends State<NewsApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return ValueListenableBuilder<AppSettings>(
       valueListenable: ConfigStore.notifier,
-      builder: (context, s, _) => MaterialApp(
+      builder: (context, s, _) => ValueListenableBuilder<String?>(
+        valueListenable: ThemePref.mode,
+        builder: (context, userMode, _) => MaterialApp(
         title: s.appName,
         debugShowCheckedModeBanner: false,
         navigatorKey: appNavKey,
         theme: _buildTheme(s, Brightness.light),
         darkTheme: _buildTheme(s, Brightness.dark),
-        themeMode: _mode(s.theme.mode),
+        themeMode: _mode(userMode ?? s.theme.mode),
         builder: (context, child) {
           // Font Size: ফোনের নিজস্ব সেটিংয়ের ওপর অ্যাডমিনের গুণক বসে
           final mq = MediaQuery.of(context);
@@ -158,6 +170,7 @@ class _NewsAppState extends State<NewsApp> with WidgetsBindingObserver {
           );
         },
         home: const SplashGate(child: Shell()),
+        ),
       ),
     );
   }
@@ -230,7 +243,7 @@ class _ShellState extends State<Shell> {
       case 'notifications':
         return const NotificationsScreen(inShell: true);
       case 'story':
-        return ComingSoonScreen(inShell: true, title: label.isEmpty ? 'রিলস' : label, message: 'রিলস লোড হয়নি।\nশীঘ্রই চালু হবে।');
+        return const ReelsScreen(inShell: true);
       case 'epaper':
         return const EpaperScreen(inShell: true);
       case 'latest':

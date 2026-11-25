@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart';
 import 'models.dart';
+import 'rewards/reward_screens.dart';
 import 'screens/post_screen.dart';
 import 'screens/video_player_screen.dart';
 import 'sys_notify.dart';
@@ -159,6 +160,10 @@ class Notifier {
     final nav = appNavKey.currentState;
     if (nav == null) {
       _pending = jsonEncode(m);
+      return;
+    }
+    if (m['t'] == 'rep') {
+      nav.push(MaterialPageRoute(builder: (_) => const RewardScreen())); // লগইন থাকলে প্রতিনিধি প্যানেল খোলে
       return;
     }
     final id = (m['id'] as num).toInt();

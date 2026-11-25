@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'config.dart';
 import 'notifications.dart';
+import 'rep/rep_api.dart';
 
 /// ব্যাকগ্রাউন্ডে (অ্যাপ বন্ধ থাকলেও) প্রতি ~১৫ মিনিটে নতুন নিউজ/ভিডিও দেখে
 @pragma('vm:entry-point')
@@ -13,6 +14,7 @@ Future<void> notifAlarmCallback() async {
     WidgetsFlutterBinding.ensureInitialized();
     DartPluginRegistrant.ensureInitialized();
     await Notifier.checkNew();
+    await RepApi.pollAndShow(); // প্রতিনিধির নিউজ প্রকাশ/বাতিলের নোটিফিকেশন
   } catch (_) {}
 }
 
@@ -84,6 +86,24 @@ class SysNotify {
       );
       final nid = (video ? 1000000000 : 0) + (id % 900000000);
       await _fln.show(nid, pic != null ? body : title, pic != null ? title : body, NotificationDetails(android: details), payload: payload);
+    } catch (_) {}
+  }
+
+  /// প্রতিনিধির নিউজ প্রকাশিত/বাতিল হলে
+  static Future<void> showRep({required int id, required String title, required String body, required String payload}) async {
+    try {
+      await init();
+      final details = AndroidNotificationDetails(
+        'as_rep',
+        'প্রতিনিধির নিউজ',
+        channelDescription: 'আপনার পাঠানো নিউজ প্রকাশ হলে বা না হলে',
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@drawable/ic_stat',
+        color: AppConfig.brand,
+        styleInformation: BigTextStyleInformation(body, contentTitle: title),
+      );
+      await _fln.show(1900000000 + (id % 90000000), title, body, NotificationDetails(android: details), payload: payload);
     } catch (_) {}
   }
 

@@ -8,8 +8,10 @@ import 'api.dart';
 import 'config.dart';
 import 'models.dart';
 import 'notifications.dart';
+import 'rep/rep_api.dart';
 import 'rewards/reward_api.dart';
 import 'saved.dart';
+import 'theme_pref.dart';
 import 'rewards/reward_screens.dart';
 import 'util.dart';
 import 'widgets.dart';
@@ -258,8 +260,10 @@ class AppDrawer extends StatelessWidget {
           valueListenable: RewardApi.me,
           builder: (context, me, _) => ListTile(
             leading: Icon(Icons.monetization_on_rounded, color: Colors.amber.shade700),
-            title: const Text('রিওয়ার্ড কয়েন', style: TextStyle(fontWeight: FontWeight.w700)),
-            subtitle: me == null ? const Text('খবর পড়ুন, কয়েন জিতুন') : Text('${bn(ri(me['coins']))} কয়েন'),
+            title: Text(RepApi.loggedIn.value ? 'প্রতিনিধি প্যানেল' : 'রিওয়ার্ড কয়েন', style: const TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: RepApi.loggedIn.value
+                ? Text('${RepApi.rep.value?['name'] ?? ''}')
+                : (me == null ? const Text('খবর পড়ুন, কয়েন জিতুন') : Text('${bn(ri(me['coins']))} কয়েন')),
             trailing: Icon(Icons.chevron_right, color: primary),
             onTap: () {
               final nav = Navigator.of(context);
@@ -281,6 +285,33 @@ class AppDrawer extends StatelessWidget {
               nav.push(MaterialPageRoute(builder: (_) => const SavedScreen()));
             },
           ),
+        ),
+        const Divider(height: 1),
+        ValueListenableBuilder<String?>(
+          valueListenable: ThemePref.mode,
+          builder: (context, userMode, _) {
+            final cur = userMode ?? (s.theme.mode == 'dark' ? 'dark' : (s.theme.mode == 'light' ? 'light' : 'system'));
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('থিম', style: TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: SegmentedButton<String>(
+                    showSelectedIcon: false,
+                    segments: const [
+                      ButtonSegment(value: 'system', label: Text('অটো')),
+                      ButtonSegment(value: 'light', label: Text('লাইট')),
+                      ButtonSegment(value: 'dark', label: Text('ডার্ক')),
+                    ],
+                    selected: {cur},
+                    onSelectionChanged: (v) => ThemePref.set(v.first),
+                  ),
+                ),
+              ]),
+            );
+          },
         ),
         const Divider(height: 1),
         if (s.menu.isNotEmpty)
