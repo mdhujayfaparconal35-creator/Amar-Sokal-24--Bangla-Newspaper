@@ -8,6 +8,10 @@ enum MediaState { off, login, watching, claiming, done, already, limit, error }
 
 /// বড়ো ভিডিও ("video") বা রিলস ("reel") সত্যিই দেখা হলো কিনা গোনে, শেষে সার্ভার থেকে কয়েন নেয়।
 /// আসল যাচাই সার্ভারে; অ্যাপ শুধু আসলে-চলা সময় গোনে (সিক/স্কিপ করলে সময় বাড়ে না)।
+///
+/// v1.15.1: আগে "শুরু" বা "দাবি" একবার ফেল করলেই কয়েন চিরতরে হারাত (কোনো পুনরায় চেষ্টা ছিল না, এরর-ও দেখাত না)।
+/// এখন: শুরুর অনুরোধ সফল না হওয়া পর্যন্ত বারবার চেষ্টা, দাবিতে নেটওয়ার্ক/"early" সমস্যায় নিজে নিজে আবার চেষ্টা,
+/// আর শেষ পর্যন্ত না হলে সার্ভারের আসল বার্তা দেখিয়ে ট্যাপ করে আবার চেষ্টার সুযোগ।
 class MediaRewardTracker extends ChangeNotifier {
   final String kind;
   final double needFraction;
@@ -20,8 +24,10 @@ class MediaRewardTracker extends ChangeNotifier {
   int earned = 0;
   double watched = 0;
   double duration = 0;
+  String errorMsg = '';
   Duration _last = Duration.zero;
-  bool _started = false, _claimed = false, _disposed = false;
+  bool _started = false, _startOk = false, _claimed = false, _disposed = false;
+  int _gen = 0; // reset হলে পুরনো অনুরোধের ফল বাতিল করতে
 
   int get coin => ri(RewardApi.cfg[kind == 'video' ? 'video_coin' : 'reel_coin']);
   double get progress => duration <= 0 ? 0 : (watched / (duration * needFraction)).clamp(0.0, 1.0).toDouble();
@@ -31,12 +37,15 @@ class MediaRewardTracker extends ChangeNotifier {
   void _loginChanged() => reset(_id);
 
   void reset(String id) {
+    _gen++;
     _id = id;
     watched = 0;
     duration = 0;
     earned = 0;
+    errorMsg = '';
     _last = Duration.zero;
     _started = false;
+    _startOk = false;
     _claimed = false;
     state = !_open ? MediaState.off : (RewardApi.loggedIn.value ? MediaState.watching : MediaState.login);
     _notify();
@@ -49,21 +58,45 @@ class MediaRewardTracker extends ChangeNotifier {
     if (playing) {
       final d = (pos - _last).inMilliseconds;
       // স্বাভাবিক চলা: ছোট ধাপ। বড়ো লাফ (সিক) বা পেছনে যাওয়া (লুপ) গোনা হয় না, লুপে নতুন পাক শুরু হয়
-      if (d > 0 && d < 1500) watched += d / 1000;
+      // (ফোন একটু আটকে গেলেও যেন সময় হারিয়ে না যায়, তাই সীমা ৩ সেকেন্ড)
+      if (d > 0 && d < 3000) watched += d / 1000;
       if (!_started) {
         _started = true;
-        RewardApi.mediaStart(kind, _id, dur.inSeconds).then((_) {}).catchError((e) {
-          if (e is RewardError && (e.status == 404 || e.status == 403)) {
-            state = MediaState.off;
-            _notify();
-          }
-        });
+        _startLoop(dur.inSeconds);
       }
     }
     _last = pos;
-    if (watched >= duration * needFraction && state == MediaState.watching) {
+    if (watched >= duration * needFraction && state == MediaState.watching && _startOk) {
       _claim();
     } else {
+      _notify();
+    }
+  }
+
+  /// সার্ভারকে "দেখা শুরু" জানানো; ফেল করলে কয়েকবার আবার চেষ্টা (এটা না হলে সার্ভার কয়েন দেয় না)
+  Future<void> _startLoop(int dur) async {
+    final g = _gen;
+    final id = _id;
+    for (var i = 0; i < 6; i++) {
+      try {
+        await RewardApi.mediaStart(kind, id, dur);
+        if (g == _gen) _startOk = true;
+        return;
+      } on RewardError catch (e) {
+        if (g != _gen || _disposed) return;
+        if (e.status == 404 || e.status == 403) {
+          // সার্ভারে ফিচার নেই/বন্ধ: পিল লুকিয়ে ফেলি
+          state = MediaState.off;
+          _notify();
+          return;
+        }
+      } catch (_) {}
+      await Future.delayed(const Duration(seconds: 4));
+      if (g != _gen || _disposed) return;
+    }
+    if (g == _gen && !_disposed) {
+      errorMsg = 'সার্ভারের সাথে যোগাযোগ হচ্ছে না।';
+      state = MediaState.error;
       _notify();
     }
   }
@@ -71,28 +104,76 @@ class MediaRewardTracker extends ChangeNotifier {
   Future<void> _claim() async {
     _claimed = true;
     state = MediaState.claiming;
+    errorMsg = '';
     _notify();
-    try {
-      final j = await RewardApi.mediaClaim(kind, _id, watched.round(), duration.round());
-      switch ('${j['state']}') {
-        case 'ok':
-          earned = ri(j['earned']);
-          state = MediaState.done;
-          RewardApi.refreshMe().then((_) {}).catchError((_) {});
-          break;
-        case 'claimed':
-          state = MediaState.already;
-          break;
-        case 'limit':
-          state = MediaState.limit;
-          break;
-        default:
-          state = MediaState.error;
+    final g = _gen;
+    for (var attempt = 0; attempt < 4; attempt++) {
+      try {
+        final j = await RewardApi.mediaClaim(kind, _id, watched.round(), duration.round());
+        if (g != _gen || _disposed) return;
+        switch ('${j['state']}') {
+          case 'ok':
+            earned = ri(j['earned']);
+            if (earned <= 0) earned = coin;
+            state = MediaState.done;
+            _notify();
+            RewardApi.refreshMe().then((_) {}).catchError((_) {});
+            return;
+          case 'claimed':
+            state = MediaState.already;
+            _notify();
+            return;
+          case 'limit':
+            state = MediaState.limit;
+            _notify();
+            return;
+          case 'early':
+            // সার্ভারের হিসাবে একটু বাকি — একটু থেমে আবার
+            if (attempt < 3) {
+              final w = (ri(j['wait']) + 1).clamp(2, 20).toInt();
+              await Future.delayed(Duration(seconds: w));
+              if (g != _gen || _disposed) return;
+              continue;
+            }
+            errorMsg = 'সার্ভারের হিসাবে এখনো সময় বাকি।';
+            break;
+          default:
+            errorMsg = '${j['message'] ?? 'অপ্রত্যাশিত উত্তর (${j['state']})'}';
+        }
+        state = MediaState.error;
+        _notify();
+        return;
+      } on RewardError catch (e) {
+        if (g != _gen || _disposed) return;
+        // নেটওয়ার্ক/সার্ভার ত্রুটি (0, ৫xx) ও ৪০০/৪২৯ ("early" ধরনের) হলে একটু পরে আবার চেষ্টা
+        final retryable = e.status == 0 || e.status >= 500 || e.status == 400 || e.status == 425 || e.status == 429;
+        if (retryable && attempt < 3) {
+          await Future.delayed(Duration(seconds: 3 + attempt * 3));
+          if (g != _gen || _disposed) return;
+          continue;
+        }
+        errorMsg = e.message;
+        state = MediaState.error;
+        _notify();
+        return;
+      } catch (_) {
+        if (g != _gen || _disposed) return;
+        errorMsg = 'অজানা সমস্যা হয়েছে।';
+        state = MediaState.error;
+        _notify();
+        return;
       }
-    } on RewardError catch (e) {
-      state = (e.status == 404 || e.status == 403) ? MediaState.off : MediaState.error;
     }
-    _notify();
+  }
+
+  /// এরর পিলে ট্যাপ করলে আবার চেষ্টা
+  void retry() {
+    if (state != MediaState.error) return;
+    if (_startOk) {
+      _claim();
+    } else {
+      reset(_id); // শুরুই হয়নি: নতুন করে গোনা
+    }
   }
 
   void _notify() {
@@ -185,7 +266,24 @@ class MediaRewardBadge extends StatelessWidget {
             w = _pill(Colors.orange.shade800, _txt('আজকের কয়েন সীমা শেষ'));
             break;
           case MediaState.error:
-            w = _pill(Colors.red.shade700, _txt('কয়েন নেওয়া যায়নি'));
+            w = ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 300),
+              child: _pill(
+                Colors.red.shade700,
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.refresh_rounded, color: Colors.white, size: 18),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                      _txt('কয়েন নেওয়া যায়নি • আবার চেষ্টা'),
+                      if (t.errorMsg.isNotEmpty)
+                        Text(t.errorMsg, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 11.5)),
+                    ]),
+                  ),
+                ]),
+                onTap: t.retry,
+              ),
+            );
             break;
         }
         return AnimatedSwitcher(duration: const Duration(milliseconds: 250), child: KeyedSubtree(key: ValueKey(t.state), child: w));

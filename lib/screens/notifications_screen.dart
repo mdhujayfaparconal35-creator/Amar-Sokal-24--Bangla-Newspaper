@@ -3,6 +3,7 @@ import '../api.dart';
 import '../dynamic_ui.dart';
 import '../models.dart';
 import '../notifications.dart';
+import '../sys_notify.dart';
 import '../util.dart';
 import '../widgets.dart';
 
@@ -17,12 +18,19 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   bool _on = true;
+  bool _osOn = true; // ফোনের সেটিংসে অ্যাপের নোটিফিকেশন চালু আছে কিনা
+
+  Future<void> _checkOs() async {
+    final v = await SysNotify.enabled();
+    if (mounted) setState(() => _osOn = v);
+  }
 
   @override
   void initState() {
     super.initState();
     Notifier.loadHistory();
     Notifier.checkNew();
+    _checkOs();
     Notifier.isOn().then((v) {
       if (mounted) setState(() => _on = v);
     });
@@ -69,6 +77,42 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 ),
               ]),
             ),
+            if (!_osOn)
+              Container(
+                margin: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(color: Colors.orange.withAlpha(30), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.orange.shade700)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('ফোনে এই অ্যাপের নোটিফিকেশন বন্ধ আছে', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'তাই নতুন খবর এলেও ফোনে জানাতে পারছে না। নিচের বাটনে চাপুন। তাতে না হলে: ফোনের সেটিংস → অ্যাপ → আমার সকাল ২৪ → নোটিফিকেশন চালু করুন।',
+                    style: TextStyle(height: 1.4, fontSize: 13.5),
+                  ),
+                  const SizedBox(height: 8),
+                  FilledButton(
+                    onPressed: () async {
+                      await SysNotify.requestPermission();
+                      await _checkOs();
+                    },
+                    child: const Text('নোটিফিকেশন চালু করুন'),
+                  ),
+                ]),
+              )
+            else
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () async {
+                    final ok = await SysNotify.showTest();
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'টেস্ট নোটিফিকেশন পাঠানো হয়েছে — ওপরে নোটিফিকেশন বারে দেখুন।' : 'নোটিফিকেশন দেখানো যায়নি। ফোনের সেটিংস দেখুন।')));
+                    _checkOs();
+                  },
+                  icon: const Icon(Icons.notifications_active_outlined, size: 18),
+                  label: const Text('টেস্ট নোটিফিকেশন পাঠান'),
+                ),
+              ),
             ValueListenableBuilder<List<NotifEntry>>(
               valueListenable: Notifier.history,
               builder: (context, hist, _) => Column(children: [

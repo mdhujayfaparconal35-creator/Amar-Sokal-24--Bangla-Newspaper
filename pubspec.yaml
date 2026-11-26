@@ -1,7 +1,7 @@
 name: amarsokal24_app
 description: আমার সকাল ২৪ নিউজ অ্যাপ
 publish_to: 'none'
-version: 1.15.0+18
+version: 1.15.1+19
 
 environment:
   sdk: '>=3.3.0 <4.0.0'

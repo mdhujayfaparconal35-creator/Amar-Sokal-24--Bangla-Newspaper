@@ -35,11 +35,45 @@ class SysNotify {
     _ready = true;
   }
 
-  static Future<void> requestPermission() async {
+  static Future<bool> requestPermission() async {
     try {
       await init();
-      await _fln.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.requestNotificationsPermission();
-    } catch (_) {}
+      final r = await _fln.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.requestNotificationsPermission();
+      return r ?? true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /// ফোনের সেটিংসে এই অ্যাপের নোটিফিকেশন চালু আছে কিনা (বন্ধ থাকলে কোনো নোটিফিকেশনই দেখাবে না)
+  static Future<bool> enabled() async {
+    try {
+      await init();
+      final r = await _fln.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.areNotificationsEnabled();
+      return r ?? true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /// একটি টেস্ট নোটিফিকেশন (ফোন ঠিকমতো দেখাতে পারছে কিনা যাচাই)। সফল হলে true
+  static Future<bool> showTest() async {
+    try {
+      await init();
+      const details = AndroidNotificationDetails(
+        'as_news',
+        'নতুন খবর',
+        channelDescription: 'নতুন খবর প্রকাশ হলে',
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@drawable/ic_stat',
+        color: AppConfig.brand,
+      );
+      await _fln.show(1990000099, 'নোটিফিকেশন ঠিক আছে', 'নতুন খবর ও ভিডিও এলে এভাবেই জানানো হবে।', const NotificationDetails(android: details));
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   static Future<void> start() async {
