@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
-import '../rewards/reward_api.dart' show RewardError, ri;
+import '../rewards/reward_api.dart';
 import '../sys_notify.dart';
 
 /// প্রতিনিধি অ্যাপের সার্ভার (T2: rep_api.php)। লগইন = ডাটাবেজ নাম্বার + পাসওয়ার্ড।
@@ -14,6 +14,8 @@ class RepApi {
   static const String base = '${AppConfig.t2Base}/rep_api.php';
 
   static String? _token;
+  static String? get token => _token;
+
   static final ValueNotifier<bool> loggedIn = ValueNotifier<bool>(false);
   static final ValueNotifier<Map<String, dynamic>?> rep = ValueNotifier<Map<String, dynamic>?>(null);
 
@@ -37,7 +39,7 @@ class RepApi {
         } catch (_) {}
       }
       loggedIn.value = _token != null && _token!.isNotEmpty;
-      if (loggedIn.value) unawaited(me().then((_) {}).catchError((_) => <String, dynamic>{}));
+      if (loggedIn.value) unawaited(me().then((_) => linkReward()).catchError((_) {}));
     } catch (_) {}
   }
 
@@ -98,8 +100,24 @@ class RepApi {
   /// ধাপ ১: নাম্বার দিলে প্রতিনিধির তথ্য ও পাসওয়ার্ড তৈরি আছে কি না জানা
   static Future<Map<String, dynamic>> lookup(String code) => _post('lookup', {'code': code}, isLogin: true);
 
+  /// প্রতিনিধিও কয়েন পাবেন: প্রতিনিধি-লগইনের সাথে তাঁর নিজস্ব রিওয়ার্ড অ্যাকাউন্ট যুক্ত হয়ে যায়
+  static Future<void> linkReward() async {
+    final t = _token;
+    if (t == null || RewardApi.loggedIn.value) return;
+    try {
+      await RewardApi.linkRep(t);
+    } catch (_) {}
+  }
+
+  /// পাসওয়ার্ড ভুলে গেলে: অফিসে রিসেটের অনুরোধ (অনুমোদনের পর নতুন পাসওয়ার্ড তৈরি করা যায়)
+  static Future<String> resetRequest(String code) async {
+    final j = await _post('reset_request', {'code': code}, isLogin: true);
+    return '${j['msg'] ?? 'অনুরোধ পাঠানো হয়েছে।'}';
+  }
+
   static Future<void> _startSession(Map<String, dynamic> j) async {
     await _setSession('${j['token']}', j['rep'] is Map ? Map<String, dynamic>.from(j['rep'] as Map) : <String, dynamic>{});
+    unawaited(linkReward());
     // লগইনের আগের নোটিফিকেশন আর দেখাবে না — এখন থেকে নতুনগুলো
     try {
       final n = await _get('notifs', q: {'since': '0'});
@@ -125,6 +143,7 @@ class RepApi {
       await _post('logout', {});
     } catch (_) {}
     await _setSession(null, null);
+    await RewardApi.logout(); // প্রতিনিধির যুক্ত রিওয়ার্ড অ্যাকাউন্ট থেকেও বের
   }
 
   /// প্রতিনিধির তথ্য, সংখ্যা (অপেক্ষমাণ/প্রকাশিত/বাতিল), আজকের জমা ও সীমা

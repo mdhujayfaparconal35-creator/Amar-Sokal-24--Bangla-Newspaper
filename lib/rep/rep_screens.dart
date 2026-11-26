@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../util.dart';
 import '../widgets.dart';
-import '../rewards/reward_api.dart' show RewardError, ri;
-import '../rewards/reward_screens.dart' show rewardSnack;
+import '../rewards/reward_api.dart';
+import '../rewards/reward_screens.dart' show rewardSnack, RewardDashboard, rewardCoin;
 import 'rep_api.dart';
 
 Color _stColor(String s) {
@@ -48,6 +48,7 @@ class _RepLoginFormState extends State<RepLoginForm> {
   Map<String, dynamic>? _rep; // ধাপ ২-এ প্রতিনিধির তথ্য
   bool _has = false; // পাসওয়ার্ড আগেই তৈরি আছে কি না
   String _status = 'none';
+  bool _resetAsked = false;
   bool _busy = false;
   bool _hide = true;
 
@@ -75,7 +76,21 @@ class _RepLoginFormState extends State<RepLoginForm> {
         _rep = j['rep'] is Map ? Map<String, dynamic>.from(j['rep'] as Map) : <String, dynamic>{};
         _has = j['has_password'] == true;
         _status = '${j['status'] ?? 'none'}';
+        _resetAsked = j['reset_requested'] == true;
       });
+    } on RewardError catch (e) {
+      rewardSnack(context, e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _reset() async {
+    setState(() => _busy = true);
+    try {
+      final m = await RepApi.resetRequest(_code.text.trim());
+      if (mounted) setState(() => _resetAsked = true);
+      rewardSnack(context, m);
     } on RewardError catch (e) {
       rewardSnack(context, e.message);
     } finally {
@@ -205,7 +220,14 @@ class _RepLoginFormState extends State<RepLoginForm> {
           child: _busy ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.4)) : const Text('লগইন'),
         ),
         const SizedBox(height: 8),
-        const Text('পাসওয়ার্ড ভুলে গেলে অফিসে যোগাযোগ করুন, রিসেট করে দেওয়া হবে।', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, height: 1.4)),
+        if (_resetAsked)
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.orange.withAlpha(30), borderRadius: BorderRadius.circular(14)),
+            child: const Text('রিসেটের অনুরোধ অফিসে পাঠানো হয়েছে। অফিস অনুমোদন দিলে "খুঁজুন" দিয়ে নতুন পাসওয়ার্ড তৈরি করতে পারবেন।', style: TextStyle(height: 1.4)),
+          )
+        else
+          TextButton(onPressed: _busy ? null : _reset, child: const Text('পাসওয়ার্ড ভুলে গেছেন? রিসেটের অনুরোধ পাঠান', style: TextStyle(fontWeight: FontWeight.w700))),
       ] else ...[
         const Text('এটাই আপনি? তাহলে নিজের জন্য একটি পাসওয়ার্ড তৈরি করুন। এটি মনে রাখবেন, পরে এই পাসওয়ার্ড দিয়েই ঢুকবেন।', style: TextStyle(height: 1.45, fontWeight: FontWeight.w600)),
         const SizedBox(height: 12),
@@ -243,6 +265,7 @@ class _RepHomeState extends State<RepHome> {
     super.initState();
     RepApi.tick.addListener(_load);
     _load();
+    RepApi.linkReward(); // রিওয়ার্ড অ্যাকাউন্ট যুক্ত না থাকলে যুক্ত করে
   }
 
   @override
@@ -332,6 +355,8 @@ class _RepHomeState extends State<RepHome> {
                 const SizedBox(height: 14),
                 _stats(context),
                 const SizedBox(height: 14),
+                _coinCard(context),
+                const SizedBox(height: 14),
                 FilledButton(
                   style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56), backgroundColor: const Color(0xFFFFB300), foregroundColor: const Color(0xFF2B1B00)),
                   onPressed: _newNews,
@@ -404,6 +429,35 @@ class _RepHomeState extends State<RepHome> {
           child: const Text('আপনার প্রতিনিধি কার্ডের মেয়াদ শেষ হয়েছে। অফিসে যোগাযোগ করে নবায়ন করুন।'),
         ),
     ]);
+  }
+
+  Widget _coinCard(BuildContext context) {
+    return ValueListenableBuilder<Map<String, dynamic>?>(
+      valueListenable: RewardApi.me,
+      builder: (context, m, _) {
+        final linked = RewardApi.loggedIn.value;
+        final taka = double.tryParse('${m?['taka'] ?? 0}') ?? 0;
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: Colors.amber.withAlpha(34), borderRadius: BorderRadius.circular(18), border: Border.all(color: Colors.amber.withAlpha(110))),
+          child: Row(children: [
+            rewardCoin(42),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('আমার রিওয়ার্ড কয়েন', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15.5)),
+                const SizedBox(height: 2),
+                Text(linked && m != null ? '${bn(ri(m['coins']))} কয়েন (≈ ${bn(taka == taka.roundToDouble() ? '${taka.toInt()}' : taka.toStringAsFixed(2))} টাকা)' : 'রিওয়ার্ড অ্যাকাউন্ট যুক্ত হচ্ছে…', style: const TextStyle(fontSize: 13.5)),
+              ]),
+            ),
+            TextButton(
+              onPressed: linked ? () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RewardDashboard())) : () => RepApi.linkReward(),
+              child: Text(linked ? 'কয়েন ড্যাশবোর্ড' : 'আবার চেষ্টা', style: const TextStyle(fontWeight: FontWeight.w800)),
+            ),
+          ]),
+        );
+      },
+    );
   }
 
   Widget _stats(BuildContext context) {

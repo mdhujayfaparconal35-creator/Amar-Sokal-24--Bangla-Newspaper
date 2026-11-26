@@ -11,6 +11,7 @@ import 'notifications.dart';
 import 'rewards/reward_api.dart';
 import 'rep/rep_api.dart';
 import 'saved.dart';
+import 'shell_state.dart';
 import 'screens/reels_screen.dart';
 import 'splash.dart';
 import 'theme_pref.dart';
@@ -169,6 +170,7 @@ class _NewsAppState extends State<NewsApp> with WidgetsBindingObserver {
             ),
           );
         },
+        navigatorObservers: [appRouteObserver],
         home: const SplashGate(child: Shell()),
         ),
       ),

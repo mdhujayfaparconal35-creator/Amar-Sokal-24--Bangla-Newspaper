@@ -79,7 +79,7 @@ class CoinPill extends StatelessWidget {
       builder: (context, _, __) => ValueListenableBuilder<Map<String, dynamic>?>(
       valueListenable: RewardApi.me,
       builder: (context, me, _) {
-        final label = RepApi.loggedIn.value ? 'প্রতিনিধি' : (me == null ? 'কয়েন জিতুন' : '${bn(ri(me['coins']))} কয়েন');
+        final label = me == null ? (RepApi.loggedIn.value ? 'প্রতিনিধি' : 'কয়েন জিতুন') : '${bn(ri(me['coins']))} কয়েন';
         return Padding(
           padding: const EdgeInsets.only(right: 6),
           child: InkWell(
@@ -248,6 +248,11 @@ class _AuthViewState extends State<_AuthView> {
             onPressed: _busy ? null : () => setState(() => _reg = !_reg),
             child: Text(_reg ? 'আগেই অ্যাকাউন্ট আছে? লগইন করুন' : 'নতুন? অ্যাকাউন্ট খুলুন', style: TextStyle(color: primary)),
           ),
+          if (!_reg)
+            TextButton(
+              onPressed: _busy ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => _ForgotScreen(email: _email.text.trim()))),
+              child: const Text('পাসওয়ার্ড ভুলে গেছেন?', style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
           if (ri(cfg['open']) == 0) ...[
             const SizedBox(height: 8),
             Text('রিওয়ার্ড সিস্টেম এখন বন্ধ আছে।', textAlign: TextAlign.center, style: TextStyle(color: Colors.red.shade700)),
@@ -259,6 +264,14 @@ class _AuthViewState extends State<_AuthView> {
 }
 
 // ---------------------------------------------------------------- ড্যাশবোর্ড
+/// প্রতিনিধিও (নিজের যুক্ত রিওয়ার্ড অ্যাকাউন্টে) এই ড্যাশবোর্ড দেখেন
+class RewardDashboard extends StatelessWidget {
+  const RewardDashboard({super.key});
+
+  @override
+  Widget build(BuildContext context) => const _Dashboard();
+}
+
 class _Dashboard extends StatefulWidget {
   const _Dashboard();
 
@@ -343,6 +356,32 @@ class _DashboardState extends State<_Dashboard> {
   }
 
   void _history() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RewardHistoryScreen()));
+
+  Future<void> _changePass() async {
+    final o = TextEditingController();
+    final n = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('পাসওয়ার্ড বদলান'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: o, obscureText: true, decoration: const InputDecoration(labelText: 'বর্তমান পাসওয়ার্ড')),
+          const SizedBox(height: 8),
+          TextField(controller: n, obscureText: true, decoration: const InputDecoration(labelText: 'নতুন পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)')),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('বাতিল')),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('বদলান')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      rewardSnack(context, await RewardApi.changePassword(o.text, n.text));
+    } on RewardError catch (e) {
+      rewardSnack(context, e.message);
+    }
+  }
 
   Future<void> _withdraw(Map<String, dynamic> m, Map<String, dynamic> cfg) async {
     final cpt = max(1, ri(cfg['coins_per_taka']));
@@ -598,12 +637,15 @@ class _DashboardState extends State<_Dashboard> {
           _rule(Icons.account_balance_wallet_outlined, Colors.pink.shade600, '${bn(ri(cfg['coins_per_taka']))} কয়েন = ১ টাকা। ন্যূনতম ${bn(ri(cfg['min_withdraw']))} টাকা হলে বিকাশে তুলতে পারবেন'),
         ]),
       ),
-      Center(
-        child: TextButton(
-          onPressed: () => RewardApi.logout(),
-          child: Text('লগআউট', style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.w700)),
-        ),
-      ),
+      // প্রতিনিধির রিওয়ার্ড অ্যাকাউন্ট প্রতিনিধি প্যানেলের লগইনের সাথে যুক্ত — পাসওয়ার্ড/লগআউট সেখান থেকে
+      if (!RepApi.loggedIn.value)
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          TextButton(onPressed: _changePass, child: const Text('পাসওয়ার্ড বদলান', style: TextStyle(fontWeight: FontWeight.w700))),
+          TextButton(
+            onPressed: () => RewardApi.logout(),
+            child: Text('লগআউট', style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.w700)),
+          ),
+        ]),
     ]);
   }
 
@@ -714,6 +756,102 @@ class _HistoryListState extends State<_HistoryList> with AutomaticKeepAliveClien
               : ListView.separated(itemCount: items.length, separatorBuilder: (_, __) => const Divider(height: 1), itemBuilder: (_, i) => widget.tile(items[i])),
         );
       },
+    );
+  }
+}
+
+
+// ---------------------------------------------------------------- ইউজার: পাসওয়ার্ড ভুলে গেলে রিসেট (ইমেইলে কোড)
+class _ForgotScreen extends StatefulWidget {
+  final String email;
+  const _ForgotScreen({required this.email});
+
+  @override
+  State<_ForgotScreen> createState() => _ForgotScreenState();
+}
+
+class _ForgotScreenState extends State<_ForgotScreen> {
+  late final TextEditingController _email = TextEditingController(text: widget.email);
+  final _code = TextEditingController();
+  final _pass = TextEditingController();
+  bool _sent = false;
+  bool _busy = false;
+  String _info = '';
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _code.dispose();
+    _pass.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    if (!_email.text.contains('@')) return rewardSnack(context, 'সঠিক ইমেইল দিন।');
+    setState(() => _busy = true);
+    try {
+      final m = await RewardApi.forgot(_email.text.trim());
+      if (mounted) {
+        setState(() {
+          _sent = true;
+          _info = m;
+        });
+      }
+    } on RewardError catch (e) {
+      rewardSnack(context, e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _reset() async {
+    if (_code.text.trim().length != 6) return rewardSnack(context, 'ইমেইলে পাওয়া ৬ অঙ্কের কোড দিন।');
+    if (_pass.text.length < 6) return rewardSnack(context, 'নতুন পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের দিন।');
+    setState(() => _busy = true);
+    try {
+      final m = await RewardApi.resetPassword(_email.text.trim(), _code.text.trim(), _pass.text);
+      if (!mounted) return;
+      rewardSnack(context, m);
+      Navigator.of(context).pop();
+    } on RewardError catch (e) {
+      rewardSnack(context, e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('পাসওয়ার্ড রিসেট')),
+      body: ListView(padding: const EdgeInsets.all(20), children: [
+        const Text('আপনার রিওয়ার্ড অ্যাকাউন্টের ইমেইল দিন। সেই ইমেইলে একটি ৬ অঙ্কের কোড যাবে।', style: TextStyle(height: 1.45)),
+        const SizedBox(height: 14),
+        TextField(controller: _email, enabled: !_sent, keyboardType: TextInputType.emailAddress, autocorrect: false, decoration: const InputDecoration(labelText: 'ইমেইল', prefixIcon: Icon(Icons.email_outlined), border: OutlineInputBorder())),
+        const SizedBox(height: 14),
+        if (!_sent)
+          FilledButton(
+            onPressed: _busy ? null : _send,
+            child: _busy ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.4)) : const Text('কোড পাঠান'),
+          )
+        else ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.green.withAlpha(25), borderRadius: BorderRadius.circular(14)),
+            child: Text(_info, style: const TextStyle(height: 1.45)),
+          ),
+          const SizedBox(height: 14),
+          TextField(controller: _code, keyboardType: TextInputType.number, maxLength: 6, decoration: const InputDecoration(labelText: '৬ অঙ্কের কোড', prefixIcon: Icon(Icons.pin_outlined), border: OutlineInputBorder(), counterText: '')),
+          const SizedBox(height: 12),
+          TextField(controller: _pass, obscureText: true, decoration: const InputDecoration(labelText: 'নতুন পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)', prefixIcon: Icon(Icons.lock_outline), border: OutlineInputBorder())),
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: _busy ? null : _reset,
+            child: _busy ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.4)) : const Text('পাসওয়ার্ড বদলান'),
+          ),
+          TextButton(onPressed: _busy ? null : () => setState(() => _sent = false), child: const Text('আবার কোড চান / ইমেইল বদলান')),
+        ],
+      ]),
     );
   }
 }

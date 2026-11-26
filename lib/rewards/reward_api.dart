@@ -159,6 +159,29 @@ class RewardApi {
   static Future<Map<String, dynamic>> readStart(int postId) => _post('/read/start', {'post_id': '$postId'});
   static Future<Map<String, dynamic>> readClaim(int postId) => _post('/read/claim', {'post_id': '$postId'});
 
+  /// প্রতিনিধি-টোকেন দিয়ে প্রতিনিধির নিজস্ব রিওয়ার্ড অ্যাকাউন্টে ঢোকা (WP সার্ভার T2 থেকে যাচাই করে নেয়)
+  static Future<void> linkRep(String repToken) async {
+    final j = await _post('/rep-login', {'rep_token': repToken});
+    await _setToken('${j['token']}');
+    await refreshMe();
+  }
+
+  /// ইউজার: পাসওয়ার্ড ভুলে গেলে ইমেইলে ৬ অঙ্কের কোড
+  static Future<String> forgot(String email) async {
+    final j = await _post('/forgot', {'email': email});
+    return '${j['message'] ?? 'কোড পাঠানো হয়েছে।'}';
+  }
+
+  static Future<String> resetPassword(String email, String code, String password) async {
+    final j = await _post('/reset', {'email': email, 'code': code, 'password': password});
+    return '${j['message'] ?? 'পাসওয়ার্ড বদলানো হয়েছে।'}';
+  }
+
+  static Future<String> changePassword(String oldPass, String newPass) async {
+    final j = await _post('/change-password', {'old': oldPass, 'new': newPass});
+    return '${j['message'] ?? 'পাসওয়ার্ড বদলানো হয়েছে।'}';
+  }
+
   /// দৈনিক চেক-ইন (সার্ভারে দিনে একবারই কয়েন যোগ হয়)
   static Future<Map<String, dynamic>> checkin() async {
     final j = await _post('/checkin', {});
