@@ -5,6 +5,7 @@ import '../util.dart';
 import '../rep/rep_api.dart';
 import '../rep/rep_screens.dart';
 import 'reward_api.dart';
+import '../lang.dart';
 
 String _dt(dynamic v) {
   final s = '${v ?? ''}'.trim();
@@ -79,7 +80,7 @@ class CoinPill extends StatelessWidget {
       builder: (context, _, __) => ValueListenableBuilder<Map<String, dynamic>?>(
       valueListenable: RewardApi.me,
       builder: (context, me, _) {
-        final label = me == null ? (RepApi.loggedIn.value ? 'প্রতিনিধি' : 'কয়েন জিতুন') : '${bn(ri(me['coins']))} কয়েন';
+        final label = me == null ? Lang.t(RepApi.loggedIn.value ? 'প্রতিনিধি' : 'কয়েন জিতুন') : (Lang.en.value ? '${ri(me['coins'])} Coins' : '${bn(ri(me['coins']))} কয়েন');
         return Padding(
           padding: const EdgeInsets.only(right: 6),
           child: InkWell(

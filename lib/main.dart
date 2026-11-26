@@ -10,6 +10,7 @@ import 'fake_stats.dart';
 import 'notifications.dart';
 import 'rewards/reward_api.dart';
 import 'rep/rep_api.dart';
+import 'lang.dart';
 import 'saved.dart';
 import 'shell_state.dart';
 import 'screens/reels_screen.dart';
@@ -19,6 +20,7 @@ import 'update_checker.dart';
 import 'screens/category_screen.dart';
 import 'screens/epaper_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/english_home.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/search_screen.dart';
 import 'screens/videos_screen.dart';
@@ -37,6 +39,7 @@ Future<void> main() async {
   await RepApi.init();
   await SavedStore.load();
   await ThemePref.load();
+  await Lang.load();
   unawaited(RewardApi.loadConfig());
   // ব্যবহারকারী বা প্রতিনিধি লগইন করলেই নতুন সংস্করণ থাকলে আপডেটের বার্তা
   void onLogin() {
@@ -267,7 +270,7 @@ class _ShellState extends State<Shell> {
           if (id == 0) return ComingSoonScreen(inShell: true, title: label);
           return CategoryScreen(category: Category(id: id, name: label, slug: ''), inShell: true);
         }
-        return const HomeScreen();
+        return const HomeSwitch();
     }
   }
 
@@ -276,6 +279,18 @@ class _ShellState extends State<Shell> {
       _select('home', '');
       return;
     }
+    // ইংরেজি মোডে হোমে: আগে ইংরেজি সাইটের ভেতরে পেছনে যায়
+    final eb = EnglishHome.tryBack;
+    if (Lang.en.value && eb != null) {
+      eb().then((handled) {
+        if (!handled && mounted) _exitHint();
+      });
+      return;
+    }
+    _exitHint();
+  }
+
+  void _exitHint() {
     final now = DateTime.now();
     if (_lastBack != null && now.difference(_lastBack!) < const Duration(seconds: 2)) {
       SystemNavigator.pop();
@@ -284,7 +299,7 @@ class _ShellState extends State<Shell> {
     _lastBack = now;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('বের হতে আবার ব্যাক চাপুন'), duration: Duration(seconds: 2)));
+      ..showSnackBar(SnackBar(content: Text(Lang.t('বের হতে আবার ব্যাক চাপুন')), duration: const Duration(seconds: 2)));
   }
 
   /// নিচের বার বা ওপরের ট্যাব — যেখানেই ট্যাপ হোক

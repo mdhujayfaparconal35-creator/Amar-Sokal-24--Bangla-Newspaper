@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:ota_update/ota_update.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'config.dart';
 import 'notifications.dart';
@@ -29,7 +30,8 @@ class UpdateInfo {
 
 /// নতুন সংস্করণ এলে ব্যবহারকারী ও প্রতিনিধি — সবাইকে সুন্দর একটি বার্তা দেখায় ("এখনই আপডেট" / "পরে") এবং ফোনের নোটিফিকেশনেও জানায়।
 /// "পরে" চাপলে একই সংস্করণের বার্তা ২৪ ঘণ্টা পর আবার আসে; বাধ্যতামূলক আপডেটে "পরে" নেই।
-/// APK-র লিংক ব্রাউজারে খোলে — ডাউনলোড শেষে ফোন নিজেই ইনস্টলের অনুমতি চায়।
+/// "এখনই আপডেট" চাপলে অ্যাপের ভেতরেই APK নামে (প্রগ্রেস দেখায়) ও ফোনের ইনস্টলার খোলে — ড্রাইভ/ব্রাউজারে যেতে হয় না।
+/// অ্যাপ-ভেতরে ডাউনলোড না হলে (ফলব্যাক) আগের মতো ব্রাউজারে লিংক খোলে।
 class UpdateChecker {
   static const String _url = '${AppConfig.t2Base}/app_meta.php';
 
@@ -148,15 +150,90 @@ class UpdateChecker {
     if (ctx != null && ctx.mounted) await showSheet(ctx, info);
   }
 
+  /// গুগল ড্রাইভের শেয়ার-লিংককে সরাসরি-ডাউনলোড লিংকে বদলায় (ড্রাইভের "ভাইরাস স্ক্যান" পাতা এড়াতে)।
+  /// ড্রাইভের ফাইল "Anyone with the link" করা থাকতে হবে। অন্য লিংক (GitHub Release / নিজের সাইট) যেমন আছে তেমনই।
+  static String directUrl(String u) {
+    final m = RegExp(r'drive\.google\.com/file/d/([A-Za-z0-9_-]+)').firstMatch(u) ??
+        RegExp(r'drive\.google\.com/(?:open|uc)\?[^#]*id=([A-Za-z0-9_-]+)').firstMatch(u);
+    if (m != null) return 'https://drive.usercontent.google.com/download?id=${m.group(1)}&export=download&confirm=t';
+    return u;
+  }
+
   static Future<void> startUpdate(UpdateInfo i) async {
     final ok = await openExternal(i.url);
     if (!ok) await openLink(i.url);
   }
 }
 
-class _UpdateSheet extends StatelessWidget {
+class _UpdateSheet extends StatefulWidget {
   final UpdateInfo info;
   const _UpdateSheet({required this.info});
+
+  @override
+  State<_UpdateSheet> createState() => _UpdateSheetState();
+}
+
+class _UpdateSheetState extends State<_UpdateSheet> {
+  UpdateInfo get info => widget.info;
+  bool _busy = false;
+  bool _failed = false;
+  int _pct = 0;
+  String _msg = '';
+
+  void _fail(String m) {
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _failed = true;
+      _msg = m;
+    });
+  }
+
+  /// অ্যাপের ভেতরেই APK নামিয়ে ফোনের ইনস্টলার খোলে (OtaUpdate)
+  Future<void> _install() async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _failed = false;
+      _pct = 0;
+      _msg = 'ডাউনলোড শুরু হচ্ছে…';
+    });
+    try {
+      final stream = OtaUpdate().execute(UpdateChecker.directUrl(info.url), destinationFilename: 'amarsokal24_update.apk');
+      await for (final ev in stream) {
+        if (!mounted) return;
+        final st = ev.status.toString().split('.').last;
+        if (st == 'DOWNLOADING') {
+          setState(() {
+            _pct = int.tryParse(ev.value ?? '') ?? _pct;
+            _msg = 'ডাউনলোড হচ্ছে…';
+          });
+        } else if (st == 'INSTALLING') {
+          setState(() {
+            _pct = 100;
+            _msg = 'ইনস্টলার খুলেছে — ফোনের "ইনস্টল/আপডেট" বাটনে চাপুন। প্রথমবার "এই উৎস থেকে অনুমতি" চাইলে অনুমতি দিন।';
+            _busy = false;
+          });
+        } else if (st == 'INSTALLATION_DONE') {
+          setState(() {
+            _busy = false;
+            _msg = 'ইনস্টল সম্পন্ন।';
+          });
+        } else if (st == 'CANCELED') {
+          _fail('বাতিল হয়েছে।');
+          return;
+        } else if (st.contains('ERROR')) {
+          _fail(st == 'PERMISSION_NOT_GRANTED_ERROR'
+              ? 'ইনস্টলের অনুমতি দেওয়া হয়নি। ফোনের সেটিংসে এই অ্যাপকে "অ্যাপ ইনস্টল করার অনুমতি" দিয়ে আবার চেষ্টা করুন।'
+              : 'অ্যাপের ভেতরে ডাউনলোড করা যায়নি। আবার চেষ্টা করুন বা নিচের "ব্রাউজারে ডাউনলোড" চাপুন।');
+          return;
+        }
+      }
+      if (mounted && _busy) setState(() => _busy = false);
+    } catch (_) {
+      _fail('অ্যাপের ভেতরে ডাউনলোড করা যায়নি। আবার চেষ্টা করুন বা নিচের "ব্রাউজারে ডাউনলোড" চাপুন।');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -222,13 +299,22 @@ class _UpdateSheet extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(22, 10, 22, 16),
             child: Column(children: [
+              if (_busy || _msg.isNotEmpty) ...[
+                if (_busy) LinearProgressIndicator(value: _pct > 0 ? _pct / 100 : null, minHeight: 6, borderRadius: BorderRadius.circular(6)),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(0, 8, 0, 10),
+                  child: Text(_busy && _pct > 0 ? '$_msg ${bn(_pct)}%' : _msg, textAlign: TextAlign.center, style: TextStyle(fontSize: 13.5, height: 1.4, color: _failed ? Colors.red.shade700 : null)),
+                ),
+              ],
               FilledButton.icon(
                 style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54), backgroundColor: const Color(0xFFFFB300), foregroundColor: const Color(0xFF2B1B00)),
-                onPressed: () => UpdateChecker.startUpdate(info),
+                onPressed: _busy ? null : _install,
                 icon: const Icon(Icons.download_rounded),
-                label: const Text('এখনই আপডেট করুন', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16.5)),
+                label: Text(_busy ? 'নামছে…' : (_failed ? 'আবার চেষ্টা করুন' : 'এখনই আপডেট করুন'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16.5)),
               ),
-              if (!info.force)
+              if (_failed)
+                TextButton(onPressed: () => UpdateChecker.startUpdate(info), child: const Text('ব্রাউজারে ডাউনলোড')),
+              if (!info.force && !_busy)
                 TextButton(
                   onPressed: () async {
                     await UpdateChecker.snooze(info);

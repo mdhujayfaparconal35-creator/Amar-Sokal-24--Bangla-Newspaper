@@ -155,7 +155,7 @@ class _FbVideoPlayerScreenState extends State<FbVideoPlayerScreen> {
                 FilledButton(onPressed: _init, child: const Text('আবার চেষ্টা')),
                 OutlinedButton(
                   style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: Colors.white54)),
-                  onPressed: () => openExternal(v.permalink),
+                  onPressed: () => openLink(v.permalink),
                   child: const Text('ফেসবুকে দেখুন'),
                 ),
               ]),
@@ -269,7 +269,7 @@ class _FbVideoPlayerScreenState extends State<FbVideoPlayerScreen> {
           child: Row(children: [
             Expanded(child: ShareRow(title: v.title.isEmpty ? AppConfig.siteName : v.title, link: v.permalink)),
             OutlinedButton.icon(
-              onPressed: () => openExternal(v.permalink),
+              onPressed: () => openLink(v.permalink),
               icon: const Icon(Icons.open_in_new, size: 17),
               label: const Text('ফেসবুকে'),
             ),

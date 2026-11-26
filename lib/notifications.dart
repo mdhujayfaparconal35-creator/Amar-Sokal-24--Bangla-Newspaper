@@ -38,13 +38,35 @@ class Notifier {
   static const _kVideos = 'notif_seen_videos';
   static const _kHist = 'notif_hist';
 
-  /// আজকের (ফোনের তারিখ অনুযায়ী) কয়টি নিউজ/ভিডিও নোটিফিকেশন তালিকায় এসেছে; পরের দিন আবার ০ থেকে শুরু
-  static int todayCount([List<NotifEntry>? l]) {
+  /// আজ (ফোনের তারিখ অনুযায়ী) কয়টি নিউজ প্রকাশ হয়েছে — "নোটিফিকেশন" ট্যাবের লাল সংখ্যা; পরের দিন আবার ০ থেকে শুরু
+  static final ValueNotifier<int> todayNews = ValueNotifier<int>(0);
+  static const _kDay = 'notif_day';
+  static const _kDayIds = 'notif_day_ids';
+
+  static int todayCount([List<NotifEntry>? l]) => todayNews.value;
+
+  static String _dayKey() {
+    final n = DateTime.now();
+    return '${n.year}-${n.month.toString().padLeft(2, '0')}-${n.day.toString().padLeft(2, '0')}';
+  }
+
+  /// আজকের তারিখে সেভ করা নিউজ-আইডির সেট (দিন বদলালে ফাঁকা)
+  static Set<String> _todayIds(SharedPreferences p) =>
+      p.getString(_kDay) == _dayKey() ? (p.getStringList(_kDayIds) ?? <String>[]).toSet() : <String>{};
+
+  /// সাইট থেকে আনা নিউজের মধ্যে আজকের তারিখের নিউজ গুনে সংখ্যা বসায় (একই নিউজ দুইবার গোনা হয় না)
+  static Future<void> _trackToday(SharedPreferences p, List<NewsItem> posts) async {
+    final ids = _todayIds(p);
     final now = DateTime.now();
-    return (l ?? history.value).where((e) {
-      final d = DateTime.tryParse(e.date);
-      return d != null && d.year == now.year && d.month == now.month && d.day == now.day;
-    }).length;
+    for (final x in posts) {
+      final d = DateTime.tryParse(x.date);
+      if (d == null) continue;
+      final l = d.isUtc ? d.toLocal() : d;
+      if (l.year == now.year && l.month == now.month && l.day == now.day) ids.add('${x.id}');
+    }
+    await p.setString(_kDay, _dayKey());
+    await p.setStringList(_kDayIds, ids.toList());
+    todayNews.value = ids.length;
   }
 
   static Future<void> start() => SysNotify.start();
@@ -67,6 +89,7 @@ class Notifier {
       final raw = p.getStringList(_kHist) ?? const [];
       final list = raw.map((e) => NotifEntry(Map<String, dynamic>.from(jsonDecode(e)))).toList();
       history.value = list;
+      todayNews.value = _todayIds(p).length;
     } catch (_) {}
   }
 
@@ -95,7 +118,8 @@ class Notifier {
 
       // নিউজ
       try {
-        final posts = await Api.posts(perPage: 10);
+        final posts = await Api.posts(perPage: 40);
+        await _trackToday(prefs, posts);
         final seen = prefs.getStringList(_kPosts);
         Map<String, dynamic> entry(NewsItem p) => {'t': 'post', 'id': p.id, 'title': p.title, 'date': p.date, 'thumb': p.image};
         if (seen == null) {

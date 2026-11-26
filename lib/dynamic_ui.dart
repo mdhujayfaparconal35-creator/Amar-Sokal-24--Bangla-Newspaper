@@ -14,6 +14,7 @@ import 'saved.dart';
 import 'theme_pref.dart';
 import 'rewards/reward_screens.dart';
 import 'util.dart';
+import 'lang.dart';
 import 'widgets.dart';
 import 'screens/category_screen.dart';
 import 'screens/search_screen.dart';
@@ -23,6 +24,8 @@ IconData iconFor(String name) {
   switch (name) {
     case 'bolt':
       return Icons.flash_on_outlined;
+    case 'shop':
+      return Icons.shopping_bag_outlined;
     case 'story':
       return Icons.movie_filter_outlined;
     case 'bell':
@@ -260,10 +263,10 @@ class AppDrawer extends StatelessWidget {
           valueListenable: RewardApi.me,
           builder: (context, me, _) => ListTile(
             leading: Icon(Icons.monetization_on_rounded, color: Colors.amber.shade700),
-            title: Text(RepApi.loggedIn.value ? 'প্রতিনিধি প্যানেল' : 'রিওয়ার্ড কয়েন', style: const TextStyle(fontWeight: FontWeight.w700)),
+            title: Text(Lang.t(RepApi.loggedIn.value ? 'প্রতিনিধি প্যানেল' : 'রিওয়ার্ড কয়েন'), style: const TextStyle(fontWeight: FontWeight.w700)),
             subtitle: RepApi.loggedIn.value
                 ? Text('${RepApi.rep.value?['name'] ?? ''}')
-                : (me == null ? const Text('খবর পড়ুন, কয়েন জিতুন') : Text('${bn(ri(me['coins']))} কয়েন')),
+                : (me == null ? Text(Lang.t('খবর পড়ুন, কয়েন জিতুন')) : Text('${bn(ri(me['coins']))} কয়েন')),
             trailing: Icon(Icons.chevron_right, color: primary),
             onTap: () {
               final nav = Navigator.of(context);
@@ -276,7 +279,7 @@ class AppDrawer extends StatelessWidget {
           valueListenable: SavedStore.items,
           builder: (context, saved, _) => ListTile(
             leading: Icon(Icons.bookmarks_outlined, color: primary),
-            title: const Text('সংরক্ষিত খবর', style: TextStyle(fontWeight: FontWeight.w700)),
+            title: Text(Lang.t('সংরক্ষিত খবর'), style: TextStyle(fontWeight: FontWeight.w700)),
             subtitle: saved.isEmpty ? null : Text('${bn(saved.length)}টি খবর'),
             trailing: Icon(Icons.chevron_right, color: primary),
             onTap: () {
@@ -294,16 +297,16 @@ class AppDrawer extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('থিম', style: TextStyle(fontWeight: FontWeight.w700)),
+                Text(Lang.t('থিম'), style: TextStyle(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 8),
                 SizedBox(
                   width: double.infinity,
                   child: SegmentedButton<String>(
                     showSelectedIcon: false,
-                    segments: const [
-                      ButtonSegment(value: 'system', label: Text('অটো')),
-                      ButtonSegment(value: 'light', label: Text('লাইট')),
-                      ButtonSegment(value: 'dark', label: Text('ডার্ক')),
+                    segments: [
+                      ButtonSegment(value: 'system', label: Text(Lang.t('অটো'))),
+                      ButtonSegment(value: 'light', label: Text(Lang.t('লাইট'))),
+                      ButtonSegment(value: 'dark', label: Text(Lang.t('ডার্ক'))),
                     ],
                     selected: {cur},
                     onSelectionChanged: (v) => ThemePref.set(v.first),
@@ -315,16 +318,18 @@ class AppDrawer extends StatelessWidget {
         ),
         const Divider(height: 1),
         // দরকারি পেজ
-        _quick(context, Icons.bolt_rounded, 'সর্বশেষ', () => _tab(context, 'latest')),
         _quick(context, Icons.play_circle_outline_rounded, 'ভিডিও', () => _tab(context, 'videos')),
         _quick(context, Icons.movie_filter_outlined, 'রিলস', () => _tab(context, 'story')),
         _quick(context, Icons.newspaper_rounded, 'ই-পেপার', () {
           Navigator.of(context).pop();
           openLink(s.epaper.url.isEmpty ? AppConfig.epaperUrl : s.epaper.url);
         }),
-        _quick(context, Icons.language_rounded, 'English', () {
+        _quick(context, Icons.language_rounded, Lang.en.value ? 'বাংলা' : 'English', () async {
           Navigator.of(context).pop();
-          openLink(AppConfig.englishUrl);
+          await Lang.toggle();
+          if (!context.mounted) return;
+          Navigator.of(context).popUntil((r) => r.isFirst);
+          TabNav.onSelect?.call('home', '');
         }),
         _quick(context, Icons.shopping_bag_outlined, 'ই-কমার্স', () {
           Navigator.of(context).pop();
@@ -333,7 +338,7 @@ class AppDrawer extends StatelessWidget {
         const Divider(height: 1),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 2),
-          child: Text('ক্যাটাগরি', style: TextStyle(fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.outline)),
+          child: Text(Lang.t('ক্যাটাগরি'), style: TextStyle(fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.outline)),
         ),
         FutureBuilder<HomeData>(
           future: Api.home(),
@@ -357,7 +362,7 @@ class AppDrawer extends StatelessWidget {
                 ListTile(
                   dense: true,
                   visualDensity: VisualDensity.compact,
-                  title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                  title: Text(Lang.t(c.name), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
                   trailing: Icon(Icons.chevron_right, color: primary),
                   onTap: () => _openCat(context, c),
                 ),
@@ -368,7 +373,7 @@ class AppDrawer extends StatelessWidget {
         // মোবাইল অ্যাপ ডাউনলোড
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-          child: Text('মোবাইল অ্যাপস ডাউনলোড করুন', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: primary)),
+          child: Text(Lang.t('মোবাইল অ্যাপস ডাউনলোড করুন'), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: primary)),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(14, 8, 14, 6),
@@ -398,7 +403,7 @@ class AppDrawer extends StatelessWidget {
       dense: true,
       visualDensity: VisualDensity.compact,
       leading: Icon(icon, color: primary, size: 24),
-      title: Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+      title: Text(Lang.t(label), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
       onTap: onTap,
     );
   }
@@ -716,7 +721,9 @@ class TopTabBar extends StatelessWidget implements PreferredSizeWidget {
   Size get preferredSize => Size.fromHeight(AppSettings.current.topTabs.showLabel ? 66 : 50);
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ValueListenableBuilder<bool>(valueListenable: Lang.en, builder: (c, _, __) => _build(c));
+
+  Widget _build(BuildContext context) {
     final s = AppSettings.current;
     final conf = s.topTabs;
     final items = conf.visible(s);
@@ -780,7 +787,7 @@ class TopTabBar extends StatelessWidget implements PreferredSizeWidget {
                         child: FittedBox(
                           fit: BoxFit.scaleDown,
                           child: Text(
-                            it.label,
+                            Lang.t(it.label),
                             maxLines: 1,
                             style: TextStyle(fontSize: 11, color: col, fontWeight: sel ? FontWeight.bold : FontWeight.normal),
                           ),
@@ -824,9 +831,47 @@ Widget hdrBtn(BuildContext context, IconData icon, String tip, VoidCallback onTa
   );
 }
 
+/// ভাষা বদলের বাটন: বাংলায় থাকলে "EN", ইংরেজিতে থাকলে "BN"
+class LangButton extends StatelessWidget {
+  const LangButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = AppSettings.current.header.fg ?? Theme.of(context).colorScheme.onSurface;
+    return ValueListenableBuilder<bool>(
+      valueListenable: Lang.en,
+      builder: (context, en, _) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: Material(
+          color: fg.withAlpha(24),
+          shape: const StadiumBorder(),
+          child: InkWell(
+            customBorder: const StadiumBorder(),
+            onTap: () async {
+              await Lang.toggle();
+              if (!context.mounted) return;
+              // খোলা পেজ বন্ধ করে হোমে ফেরে (হোমেই ভাষা অনুযায়ী পুরো কনটেন্ট বদলায়)
+              Navigator.of(context).popUntil((r) => r.isFirst);
+              TabNav.onSelect?.call('home', '');
+            },
+            child: SizedBox(
+              height: 36,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 11),
+                child: Center(child: Text(en ? 'BN' : 'EN', style: TextStyle(color: fg, fontWeight: FontWeight.w800, fontSize: 14))),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// হেডারের ডানে সার্চ ও হ্যামবার্গার মেনু বাটন (সবসময় ডানে, কালবেলা স্টাইল)।
 /// ড্রয়ারওয়ালা Scaffold এর ভেতরে থাকতে হবে।
 List<Widget> headerActions({bool search = true}) => [
+      const LangButton(),
       const CoinPill(),
       if (search)
         Builder(
@@ -911,10 +956,9 @@ class NotifBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<List<NotifEntry>>(
-      valueListenable: Notifier.history,
-      builder: (context, list, _) {
-        final n = Notifier.todayCount(list);
+    return ValueListenableBuilder<int>(
+      valueListenable: Notifier.todayNews,
+      builder: (context, n, _) {
         return Stack(clipBehavior: Clip.none, children: [
           child,
           if (n > 0)

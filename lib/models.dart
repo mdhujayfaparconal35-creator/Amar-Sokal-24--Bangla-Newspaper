@@ -324,7 +324,6 @@ class TopTabsConf {
   /// কালবেলা স্টাইলের ৬টি ট্যাব (ইন্টারনেট/কনফিগ না থাকলে এটাই চলে)
   factory TopTabsConf.defaults() => const TopTabsConf(enabled: true, items: [
         TopTabItem(id: 't0', label: 'হোম', icon: 'home', type: 'home'),
-        TopTabItem(id: 't1', label: 'সর্বশেষ', icon: 'bolt', type: 'latest'),
         TopTabItem(id: 't2', label: 'ভিডিও', icon: 'play', type: 'videos'),
         TopTabItem(id: 't3', label: 'রিলস', icon: 'story', type: 'story'),
         TopTabItem(id: 't4', label: 'নোটিফিকেশন', icon: 'bell', type: 'notifications'),
@@ -374,13 +373,17 @@ class TopTabsConf {
       }
       return t;
     }).toList();
-    // অ্যাডমিনের সেভ করা তালিকায় না থাকলেও ৬টি ট্যাব পূর্ণ করা
+    // "সর্বশেষ" ট্যাব বাদ; ই-কমার্স সবার শেষে (অ্যাডমিনের তালিকায় যা-ই থাকুক)
+    list.removeWhere((t) => t.type == 'latest');
+    list.removeWhere((t) => t.type == 'link' && t.target.contains('shop.amarsokal24.com'));
+    // অ্যাডমিনের সেভ করা তালিকায় না থাকলেও ট্যাব পূর্ণ করা
     if (!list.any((t) => t.type == 'story')) {
       list.add(const TopTabItem(id: 'ts', label: 'রিলস', icon: 'story', type: 'story'));
     }
     if (!list.any((t) => t.type == 'epaper')) {
       list.add(const TopTabItem(id: 'te', label: 'ই-পেপার', icon: 'paper', type: 'epaper'));
     }
+    list.add(const TopTabItem(id: 'tshop', label: 'ই-কমার্স', icon: 'shop', type: 'link', target: 'https://shop.amarsokal24.com/'));
     return list;
   }
 }

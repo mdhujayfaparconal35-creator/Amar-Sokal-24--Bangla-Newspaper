@@ -7,7 +7,7 @@ import '../util.dart';
 /// ওয়েবসাইটের ওপরের হেডার/মেনু ও নিচের ফুটার লুকানোর স্ক্রিপ্ট (যেকোনো সাইটে চলে)।
 /// সাইটের ক্লাস না জেনেই: header/footer ট্যাগ, ওপরে আটকে থাকা বার, "স্বত্ব/©/All rights reserved" ব্লক লুকায়।
 /// মূল লেখা (main/article) কখনো লুকায় না।
-const String _hideJs = r'''
+const String kWebHideJs = r'''
 (function(){
   if(!document.body) return;
   var H=function(e){ if(e&&e!==document.body&&e!==document.documentElement) e.style.setProperty('display','none','important'); };
@@ -98,7 +98,7 @@ class _WebPageScreenState extends State<WebPageScreen> {
         t.cancel();
         return;
       }
-      _c.runJavaScript(_hideJs).catchError((_) {});
+      _c.runJavaScript(kWebHideJs).catchError((_) {});
       if (_isEpaper) _c.runJavaScript(_epaperJs).catchError((_) {});
     });
   }
@@ -112,9 +112,9 @@ class _WebPageScreenState extends State<WebPageScreen> {
         onNavigationRequest: (r) {
           final u = Uri.tryParse(r.url);
           final scheme = u?.scheme ?? '';
-          // tel:, mailto:, whatsapp: ইত্যাদি অন্য অ্যাপে খুলবে
+          // শুধু ফোন/মেইল/মেসেজ/হোয়াটসঅ্যাপ অন্য অ্যাপে; বাকি অজানা স্কিম (fb://, intent:// ইত্যাদি) আটকে অ্যাপের ভেতরেই থাকে
           if (scheme != 'http' && scheme != 'https' && scheme != 'about' && scheme != 'data' && scheme != 'javascript' && scheme != 'blob') {
-            openExternal(r.url);
+            if (scheme == 'tel' || scheme == 'mailto' || scheme == 'sms' || scheme == 'whatsapp') openExternal(r.url);
             return NavigationDecision.prevent;
           }
           return NavigationDecision.navigate;

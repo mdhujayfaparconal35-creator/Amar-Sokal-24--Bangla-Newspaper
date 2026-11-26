@@ -23,6 +23,7 @@ class PostScreen extends StatefulWidget {
 
 class _PostScreenState extends State<PostScreen> {
   late Future<NewsDetail> _future = Api.post(widget.id);
+  NewsDetail? _last; // রিফ্রেশের সময় পুরনো লেখা দেখিয়ে রাখতে
   double _fontSize = 20;
   final ValueNotifier<double> _progress = ValueNotifier<double>(0);
 
@@ -65,11 +66,28 @@ class _PostScreenState extends State<PostScreen> {
     );
   }
 
+  /// নিচে টেনে রিফ্রেশ: নিউজটি সার্ভার থেকে আবার আনে (ক্যাশ বাদ দিয়ে)
+  Future<void> _refresh() async {
+    Api.clearCache();
+    try {
+      final d = await Api.post(widget.id);
+      if (!mounted) return;
+      setState(() {
+        _last = d;
+        _future = Future<NewsDetail>.value(d);
+      });
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('রিফ্রেশ করা যায়নি, ইন্টারনেট দেখুন')));
+    }
+  }
+
   Widget _body(BuildContext context, AsyncSnapshot<NewsDetail> snap) {
-    if (snap.connectionState != ConnectionState.done) {
+    if (snap.hasData) _last = snap.data;
+    if (_last == null && snap.connectionState != ConnectionState.done) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (snap.hasError || snap.data == null) {
+    if (_last == null && (snap.hasError || snap.data == null)) {
       return Center(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const Text('নিউজটি লোড করা যায়নি'),
@@ -80,7 +98,7 @@ class _PostScreenState extends State<PostScreen> {
         ]),
       );
     }
-    final d = snap.data!;
+    final d = _last ?? snap.data!;
     final theme = Theme.of(context);
     final primary = theme.colorScheme.primary;
     final grey = theme.colorScheme.onSurface.withAlpha(150);
@@ -90,7 +108,7 @@ class _PostScreenState extends State<PostScreen> {
     final parts = _splitHtml(d.content);
     final views = FakeStats.views(d.item.id);
     final shares = FakeStats.shares(d.item.id);
-    final list = ListView(children: [
+    final list = ListView(physics: const AlwaysScrollableScrollPhysics(), children: [
       const Divider(height: 1),
       // ব্রেডক্রাম্ব: প্রচ্ছদ » ক্যাটাগরি
       Padding(
@@ -256,7 +274,7 @@ class _PostScreenState extends State<PostScreen> {
           if (max > 0) _progress.value = (n.metrics.pixels / max).clamp(0.0, 1.0);
           return false;
         },
-        child: list,
+        child: RefreshIndicator(onRefresh: _refresh, child: list),
       ),
       Positioned(
         left: 0,

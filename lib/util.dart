@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'notifications.dart' show appNavKey;
 import 'screens/web_page_screen.dart';
 
 const _en = '0123456789';
@@ -31,13 +32,19 @@ String timeAgo(String iso) {
 
 Future<void> openYoutube(String id) async {
   if (id.isEmpty) return;
-  await launchUrl(Uri.parse('https://www.youtube.com/watch?v=$id'), mode: LaunchMode.externalApplication);
+  await openLink('https://www.youtube.com/watch?v=$id');
 }
 
 /// লিংক খোলে (ব্রাউজারে)। ভুল/https নয় এমন লিংক উপেক্ষা করে।
 Future<void> openLink(String url) async {
   final uri = Uri.tryParse(url);
   if (uri == null || uri.scheme != 'https' && uri.scheme != 'http') return;
+  // সব লিংক অ্যাপের ভেতরেই (অ্যাপের হেডারসহ) খোলে; অ্যাপ-পেজ তৈরি না থাকলে তবেই বাইরের ব্রাউজার
+  final nav = appNavKey.currentState;
+  if (nav != null) {
+    nav.push(MaterialPageRoute(builder: (_) => WebPageScreen(url: url)));
+    return;
+  }
   try {
     final ok = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
     if (!ok) await launchUrl(uri, mode: LaunchMode.externalApplication);

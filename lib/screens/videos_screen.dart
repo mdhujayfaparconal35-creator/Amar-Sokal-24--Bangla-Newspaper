@@ -76,7 +76,7 @@ class _VideosScreenState extends State<VideosScreen> {
           ),
           const SizedBox(height: 18),
           Center(child: FilledButton.icon(onPressed: _refresh, icon: const Icon(Icons.refresh), label: const Text('আবার চেষ্টা করুন'))),
-          Center(child: TextButton(onPressed: () => openExternal(AppConfig.reelsUrl.replaceFirst('/reels/', '/videos/')), child: const Text('ফেসবুকে দেখুন'))),
+          Center(child: TextButton(onPressed: () => openLink(AppConfig.reelsUrl.replaceFirst('/reels/', '/videos/')), child: const Text('ফেসবুকে দেখুন'))),
         ]),
       );
     }
