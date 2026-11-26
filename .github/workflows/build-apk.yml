@@ -37,7 +37,20 @@ jobs:
       - name: Setup notifications (Android)
         run: |
           M=android/app/src/main/AndroidManifest.xml
-          sed -i '0,/<manifest[^>]*>/s//&\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"\/>\n    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"\/>\n    <uses-permission android:name="android.permission.VIBRATE"\/>/' $M
+          sed -i '0,/<manifest[^>]*>/s//&\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"\/>\n    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"\/>\n    <uses-permission android:name="android.permission.VIBRATE"\/>\n    <uses-permission android:name="android.permission.WAKE_LOCK"\/>/' $M
+          python3 - <<'PY'
+          p = 'android/app/src/main/AndroidManifest.xml'
+          s = open(p, encoding='utf-8').read()
+          add = """<service android:name="dev.fluttercommunity.plus.androidalarmmanager.AlarmService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false"/>
+              <receiver android:name="dev.fluttercommunity.plus.androidalarmmanager.AlarmBroadcastReceiver" android:exported="false"/>
+              <receiver android:name="dev.fluttercommunity.plus.androidalarmmanager.RebootBroadcastReceiver" android:enabled="false" android:exported="false">
+                  <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED"/></intent-filter>
+              </receiver>
+          """
+          s = s.replace('</application>', add + '</application>', 1)
+          open(p, 'w', encoding='utf-8').write(s)
+          print(s)
+          PY
           mkdir -p android/app/src/main/res/drawable android/app/src/main/res/raw
           cat > android/app/src/main/res/drawable/ic_stat.xml <<'XML'
           <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
@@ -85,6 +98,54 @@ jobs:
           }
           EOF2
 
+      # স্থায়ী release key দিয়ে সাইন (GitHub Secrets থেকে) — যাতে প্রতিটি আপডেট আগের অ্যাপের ওপর ইনস্টল হয়
+      - name: Setup permanent release signing
+        env:
+          KS_B64: ${{ secrets.KEYSTORE_BASE64 }}
+          KS_PASS_SECRET: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KS_B64" ] || [ -z "$KS_PASS_SECRET" ]; then
+            echo "ERROR: GitHub Secrets KEYSTORE_BASE64 / KEYSTORE_PASSWORD সেট করা নেই।"; exit 1
+          fi
+          echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          echo "KS_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+          echo "KS_PASS=$KS_PASS_SECRET" >> "$GITHUB_ENV"
+          echo "KS_ALIAS=amarsokal24" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          import os, re, sys
+          done = False
+          for f in ['android/app/build.gradle.kts', 'android/app/build.gradle']:
+              if not os.path.exists(f):
+                  continue
+              s = open(f, encoding='utf-8').read()
+              kts = f.endswith('.kts')
+              if kts:
+                  block = ('signingConfigs {\n        create("release") {\n'
+                           '            storeFile = file(System.getenv("KS_PATH"))\n'
+                           '            storePassword = System.getenv("KS_PASS")\n'
+                           '            keyAlias = System.getenv("KS_ALIAS")\n'
+                           '            keyPassword = System.getenv("KS_PASS")\n'
+                           '        }\n    }\n    ')
+                  s, n = re.subn(r'signingConfigs\.getByName\("debug"\)', 'signingConfigs.getByName("release")', s)
+              else:
+                  block = ('signingConfigs {\n        release {\n'
+                           '            storeFile file(System.getenv("KS_PATH"))\n'
+                           '            storePassword System.getenv("KS_PASS")\n'
+                           '            keyAlias System.getenv("KS_ALIAS")\n'
+                           '            keyPassword System.getenv("KS_PASS")\n'
+                           '        }\n    }\n    ')
+                  s, n = re.subn(r'signingConfig\s*=?\s*signingConfigs\.debug', 'signingConfig signingConfigs.release', s)
+              if n == 0:
+                  print('ERROR: debug signingConfig line not found in', f); sys.exit(1)
+              s, m = re.subn(r'(\n\s*)buildTypes\s*\{', lambda mo: mo.group(1) + block.rstrip(' ') + mo.group(1).lstrip('\n') + 'buildTypes {', s, count=1)
+              if m == 0:
+                  print('ERROR: buildTypes not found in', f); sys.exit(1)
+              open(f, 'w', encoding='utf-8').write(s)
+              print('SIGNING PATCHED', f); print(s); done = True
+          if not done:
+              print('ERROR: no build.gradle found'); sys.exit(1)
+          PY
+
       - run: flutter pub get
 
       # Android lint টুলের বাগ (webview প্যাকেজে) এড়াতে lint বন্ধ রাখা
@@ -105,6 +166,9 @@ jobs:
       - run: dart run flutter_launcher_icons
 
       - run: flutter build apk --release
+
+      - name: Show APK signing fingerprint
+        run: keytool -printcert -jarfile build/app/outputs/flutter-apk/app-release.apk | grep -E "Owner|SHA256"
 
       - uses: actions/upload-artifact@v4
         with:
