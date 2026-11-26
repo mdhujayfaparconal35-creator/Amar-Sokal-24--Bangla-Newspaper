@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import '../config.dart';
 import '../dynamic_ui.dart';
 import '../fb/fb_media.dart';
 import '../shell_state.dart';
+import '../rewards/media_reward.dart';
 import '../util.dart';
 
 /// "রিলস" ট্যাব: ফেসবুক পেজের লম্বা ভিডিও (সর্বোচ্চ ৫০টি) অ্যাপের নিজস্ব প্লেয়ারে চলে।
@@ -25,6 +27,8 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver, 
   final Set<String> _failed = {};
   final Set<String> _liked = {};
   int _cur = 0;
+  final MediaRewardTracker _rw = MediaRewardTracker('reel');
+  Timer? _rwTimer;
   bool _muted = false;
   bool _tabOn = true;
   bool _routeOn = true;
@@ -42,6 +46,12 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver, 
     WidgetsBinding.instance.addObserver(this);
     _tabOn = !widget.inShell || TabNav.current.value == 'story';
     TabNav.current.addListener(_onTab);
+    // রিলসের আসলে-চলা সময় গোনা (প্রতি আধা সেকেন্ডে)
+    _rwTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      final c = _vc[_cur];
+      if (c == null || !c.value.isInitialized || _items.isEmpty) return;
+      _rw.onTick(c.value.position, c.value.duration, c.value.isPlaying);
+    });
     _load();
   }
 
@@ -61,6 +71,8 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver, 
     WidgetsBinding.instance.removeObserver(this);
     TabNav.current.removeListener(_onTab);
     appRouteObserver.unsubscribe(this);
+    _rwTimer?.cancel();
+    _rw.dispose();
     _heartC.dispose();
     for (final c in _vc.values) {
       c.dispose();
@@ -124,6 +136,7 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver, 
       });
       _ensure(0);
       _ensure(1);
+      _rw.reset(cached.items.first.id);
     }
     final f = await FbMedia.reels();
     if (!mounted) return;
@@ -147,6 +160,7 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver, 
       });
       _ensure(0);
       _ensure(1);
+      _rw.reset(f.items.first.id);
     }
   }
 
@@ -170,6 +184,7 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver, 
   void _onPage(int i) {
     _vc[_cur]?.pause();
     _cur = i;
+    if (i < _items.length) _rw.reset(_items[i].id);
     for (final k in _vc.keys.toList()) {
       if ((k - i).abs() > 1) {
         _vc.remove(k)?.dispose();
@@ -329,6 +344,7 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver, 
           _act(Icons.open_in_new, 'ফেসবুকে', () => openExternal(it.permalink.isEmpty ? AppConfig.reelsUrl : it.permalink)),
         ]),
       ),
+      if (i == _cur) Positioned(top: 12, left: 12, child: MediaRewardBadge(tracker: _rw)),
       if (i == _cur && _heartAt != null)
         Positioned(
           left: _heartAt!.dx - 50,

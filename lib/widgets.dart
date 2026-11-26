@@ -992,7 +992,9 @@ const List<_Partner> _partners = [
 
 /// "আমার সকালের অন্যান্য উদ্যোগ" লোগো গ্রিড
 class PartnersSection extends StatelessWidget {
-  const PartnersSection({super.key});
+  /// compact = সাইড মেনুর ছোট চওড়ায় (ছোট শিরোনাম, কম প্যাডিং)
+  final bool compact;
+  const PartnersSection({super.key, this.compact = false});
 
   Widget _card(BuildContext context, _Partner p) {
     return Material(
@@ -1029,13 +1031,15 @@ class PartnersSection extends StatelessWidget {
       ));
     }
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 6, 14, 4),
+      padding: EdgeInsets.fromLTRB(compact ? 12 : 14, 6, compact ? 12 : 14, 4),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Container(width: 5, height: 22, decoration: BoxDecoration(color: brand, borderRadius: BorderRadius.circular(3))),
           const SizedBox(width: 10),
-          const Text('আমার সকালের অন্যান্য উদ্যোগ',
-              style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: Color(0xFF111111))),
+          Flexible(
+            child: Text('আমার সকালের অন্যান্য উদ্যোগ',
+                style: TextStyle(fontSize: compact ? 16 : 19, fontWeight: FontWeight.bold, color: compact ? brand : const Color(0xFF111111))),
+          ),
         ]),
         const SizedBox(height: 12),
         ...rows,

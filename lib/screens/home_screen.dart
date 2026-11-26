@@ -4,7 +4,11 @@ import '../config.dart';
 import '../fake_stats.dart';
 import '../dynamic_ui.dart';
 import '../models.dart';
+import '../fb/fb_media.dart';
+import 'fb_video_player_screen.dart';
 import '../widgets.dart';
+import '../util.dart';
+import '../rewards/reward_api.dart';
 import 'category_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -181,20 +185,7 @@ class _HomeScreenState extends State<HomeScreen> {
           }
           break;
         case 'videos':
-          final v = d.videos.take(s.count).toList();
-          if (v.isNotEmpty) {
-            children.add(SectionTitle(s.title));
-            children.add(SizedBox(
-              height: 160,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                itemCount: v.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (_, i) => VideoCard(v[i], width: 220),
-              ),
-            ));
-          }
+          children.add(HomeFbVideos(title: s.title.isEmpty ? 'ভিডিও' : s.title, count: s.count > 0 ? s.count : AppConfig.homeVideoCount));
           break;
         case 'category':
           if (s.category > 0) {
@@ -317,6 +308,126 @@ class CategoryHomeBlock extends StatelessWidget {
         ]),
       ),
       CategorySection(categoryId: category.id, count: AppConfig.homeCategoryCount),
+    ]);
+  }
+}
+
+
+/// হোমের "ভিডিও" সেকশন: ফেসবুক পেজের ভিডিও — ট্যাপ করলে অ্যাপের প্লেয়ারে চলে (পুরো দেখলে কয়েন)
+class HomeFbVideos extends StatefulWidget {
+  final String title;
+  final int count;
+  const HomeFbVideos({super.key, required this.title, required this.count});
+
+  @override
+  State<HomeFbVideos> createState() => _HomeFbVideosState();
+}
+
+class _HomeFbVideosState extends State<HomeFbVideos> {
+  List<FbVideo> _items = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final c = await FbMedia.cached('videos');
+    if (c != null && mounted) setState(() => _items = c.items);
+    final f = await FbMedia.videos();
+    if (mounted && f.items.isNotEmpty) setState(() => _items = f.items);
+  }
+
+  void _open(FbVideo v) {
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => FbVideoPlayerScreen(video: v, others: _items)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_items.isEmpty) return const SizedBox.shrink();
+    final t = Theme.of(context);
+    final list = _items.take(widget.count).toList();
+    final coin = RewardApi.cfg['video_coin'];
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Expanded(child: SectionTitle(widget.title)),
+        Padding(
+          padding: const EdgeInsets.only(top: 12, right: 6),
+          child: TextButton(
+            onPressed: () => TabNav.onSelect?.call('videos', ''),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text('সব ভিডিও', style: TextStyle(color: t.colorScheme.primary, fontWeight: FontWeight.w800)),
+              Icon(Icons.chevron_right, color: t.colorScheme.primary, size: 20),
+            ]),
+          ),
+        ),
+      ]),
+      SizedBox(
+        height: 214,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          itemCount: list.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 12),
+          itemBuilder: (_, i) {
+            final v = list[i];
+            return GestureDetector(
+              onTap: () => _open(v),
+              child: SizedBox(
+                width: 262,
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: Stack(fit: StackFit.expand, children: [
+                        Container(color: Colors.black),
+                        if (v.thumb.startsWith('http')) Image.network(v.thumb, fit: v.square ? BoxFit.contain : BoxFit.cover, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+                        const DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, Colors.black54], stops: [0.5, 1]))),
+                        Center(
+                          child: Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withAlpha(235), boxShadow: [BoxShadow(color: Colors.black.withAlpha(110), blurRadius: 14, offset: const Offset(0, 5))]),
+                            child: Icon(Icons.play_arrow_rounded, size: 36, color: AppConfig.brand),
+                          ),
+                        ),
+                        if (v.lengthText.isNotEmpty)
+                          Positioned(
+                            right: 8,
+                            bottom: 8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(color: Colors.black.withAlpha(170), borderRadius: BorderRadius.circular(7)),
+                              child: Text(bn(v.lengthText), style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w800)),
+                            ),
+                          ),
+                        if (ri(coin) > 0)
+                          Positioned(
+                            left: 8,
+                            top: 8,
+                            child: Container(
+                              padding: const EdgeInsets.fromLTRB(5, 3, 9, 3),
+                              decoration: BoxDecoration(color: Colors.amber.shade700, borderRadius: BorderRadius.circular(20)),
+                              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                const Icon(Icons.monetization_on_rounded, color: Colors.white, size: 15),
+                                const SizedBox(width: 3),
+                                Text('+${bn(ri(coin))}', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900)),
+                              ]),
+                            ),
+                          ),
+                      ]),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(v.title.isEmpty ? AppConfig.siteName : v.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, height: 1.32)),
+                ]),
+              ),
+            );
+          },
+        ),
+      ),
     ]);
   }
 }

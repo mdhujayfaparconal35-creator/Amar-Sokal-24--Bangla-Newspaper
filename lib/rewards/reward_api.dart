@@ -33,6 +33,11 @@ class RewardApi {
     'read_coin': 1,
     'read_seconds': 30,
     'read_daily_max': 70,
+    'video_coin': 7,
+    'video_daily_max': 10,
+    'reel_coin': 4,
+    'reel_daily_max': 25,
+    'rep_news_coin': 1,
     'share_coin': 10,
     'share_daily_max': 3,
     'coins_per_taka': 100,
@@ -158,6 +163,14 @@ class RewardApi {
 
   static Future<Map<String, dynamic>> readStart(int postId) => _post('/read/start', {'post_id': '$postId'});
   static Future<Map<String, dynamic>> readClaim(int postId) => _post('/read/claim', {'post_id': '$postId'});
+
+  /// বড়ো ভিডিও (kind=video) বা রিলস (kind=reel) দেখা শুরু — সার্ভার সময় ধরে রাখে
+  static Future<Map<String, dynamic>> mediaStart(String kind, String id, int duration) =>
+      _post('/media/start', {'kind': kind, 'media_id': id, 'duration': '$duration'});
+
+  /// দেখা শেষে কয়েন চাওয়া — সার্ভার নিজে সময়/সীমা/একবারই-কয়েন যাচাই করে
+  static Future<Map<String, dynamic>> mediaClaim(String kind, String id, int watched, int duration) =>
+      _post('/media/claim', {'kind': kind, 'media_id': id, 'watched': '$watched', 'duration': '$duration'});
 
   /// প্রতিনিধি-টোকেন দিয়ে প্রতিনিধির নিজস্ব রিওয়ার্ড অ্যাকাউন্টে ঢোকা (WP সার্ভার T2 থেকে যাচাই করে নেয়)
   static Future<void> linkRep(String repToken) async {

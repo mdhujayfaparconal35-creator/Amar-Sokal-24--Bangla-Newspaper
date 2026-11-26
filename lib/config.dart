@@ -22,7 +22,7 @@ class AppConfig {
   /// এই APK-র Build নম্বর (pubspec.yaml এর version এর + এর পরের সংখ্যা, যেমন 1.1.0+2 => 2)।
   /// নতুন Native ফিচার সহ APK বের করলে দুটোই একসাথে বাড়ান; অ্যাডমিনে "ন্যূনতম Build নম্বর" দিলে
   /// তার চেয়ে পুরনো অ্যাপে আপডেটের বার্তা আসবে।
-  static const int build = 17;
+  static const int build = 18;
 
   /// কনফিগ কত মিনিট পর পর নতুন আছে কিনা দেখবে (অ্যাপ খোলা অবস্থায়)।
   static const int configRefreshMinutes = 5;
@@ -39,6 +39,18 @@ class AppConfig {
     'বাংলাদেশ', 'ভারত', 'পাকিস্তান', 'ময়মনসিংহ', 'ময়মনশিং', 'ঢাকা', 'চট্টগ্রাম', 'রাজশাহী', 'খুলনা', 'বরিশাল', 'সিলেট', 'রংপুর',
     'শোকাহত', 'আবহাওয়া', 'নির্বাচিত', 'অন্যান্য',
   ];
+
+  /// সাইড মেনুতে শুধু এই দরকারি ক্যাটাগরিগুলো (সাইটের ক্যাটাগরির নামের সাথে হুবহু মিলতে হবে; না মিললে বাদ যায়)
+  static const List<String> drawerCategories = ['সারাদেশ', 'রাজনীতি', 'আন্তর্জাতিক', 'খেলাধুলা', 'বিনোদন', 'অপরাধ'];
+
+  /// সাইড মেনুর অ্যাপ ডাউনলোড বাটনের লিংক (পাবলিশ হলে আসল লিংক বসান)
+  static const String playStoreUrl = 'https://play.google.com/store/apps/details?id=com.amarsokal24.amarsokal24_app';
+  static const String appStoreUrl = 'https://amarsokal24.com/';
+  static const String englishUrl = 'https://en.amarsokal24.com/';
+  static const String shopUrl = 'https://shop.amarsokal24.com/';
+
+  /// হোমের ভিডিও সেকশনে কয়টি ফেসবুক ভিডিও
+  static const int homeVideoCount = 8;
 
   /// হোমের নিচে কয়টি ক্যাটাগরি-সেকশন, প্রতিটিতে কয়টি খবর
   static const int homeCategoryBlocks = 6;

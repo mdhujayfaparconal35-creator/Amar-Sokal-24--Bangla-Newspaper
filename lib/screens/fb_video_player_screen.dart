@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import '../config.dart';
 import '../fb/fb_media.dart';
+import '../rewards/media_reward.dart';
 import '../util.dart';
 import '../widgets.dart';
 
@@ -25,12 +26,14 @@ class _FbVideoPlayerScreenState extends State<FbVideoPlayerScreen> {
   bool _fs = false;
   bool _muted = false;
   Timer? _hide;
+  final MediaRewardTracker _rw = MediaRewardTracker('video');
 
   FbVideo get v => widget.video;
 
   @override
   void initState() {
     super.initState();
+    _rw.reset(v.id);
     _init();
   }
 
@@ -52,6 +55,8 @@ class _FbVideoPlayerScreenState extends State<FbVideoPlayerScreen> {
   }
 
   void _tick() {
+    final c = _c;
+    if (c != null && c.value.isInitialized) _rw.onTick(c.value.position, c.value.duration, c.value.isPlaying);
     if (mounted) setState(() {});
   }
 
@@ -108,6 +113,7 @@ class _FbVideoPlayerScreenState extends State<FbVideoPlayerScreen> {
     _hide?.cancel();
     _c?.removeListener(_tick);
     _c?.dispose();
+    _rw.dispose();
     if (_fs) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       SystemChrome.setPreferredOrientations(DeviceOrientation.values);
@@ -137,6 +143,7 @@ class _FbVideoPlayerScreenState extends State<FbVideoPlayerScreen> {
             Expanded(child: GestureDetector(behavior: HitTestBehavior.translucent, onTap: _toggleControls, onDoubleTap: () => _skip(10))),
           ]),
         ),
+        Positioned(top: 10, left: 10, child: SafeArea(child: MediaRewardBadge(tracker: _rw))),
         if (_failed)
           Center(
             child: Column(mainAxisSize: MainAxisSize.min, children: [

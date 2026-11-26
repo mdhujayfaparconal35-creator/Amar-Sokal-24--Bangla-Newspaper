@@ -314,31 +314,119 @@ class AppDrawer extends StatelessWidget {
           },
         ),
         const Divider(height: 1),
-        if (s.menu.isNotEmpty)
-          ...s.menu.map((m) => ListTile(
-                title: Text(m.label, style: const TextStyle(fontWeight: FontWeight.w600)),
-                trailing: Icon(Icons.chevron_right, color: primary),
-                onTap: () => _open(context, m),
-              ))
-        else
-          FutureBuilder<HomeData>(
-            future: Api.home(),
-            builder: (context, snap) {
-              final cats = snap.data?.categories ?? const <Category>[];
-              if (snap.connectionState != ConnectionState.done) {
-                return const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()));
+        // দরকারি পেজ
+        _quick(context, Icons.bolt_rounded, 'সর্বশেষ', () => _tab(context, 'latest')),
+        _quick(context, Icons.play_circle_outline_rounded, 'ভিডিও', () => _tab(context, 'videos')),
+        _quick(context, Icons.movie_filter_outlined, 'রিলস', () => _tab(context, 'story')),
+        _quick(context, Icons.newspaper_rounded, 'ই-পেপার', () {
+          Navigator.of(context).pop();
+          openLink(s.epaper.url.isEmpty ? AppConfig.epaperUrl : s.epaper.url);
+        }),
+        _quick(context, Icons.language_rounded, 'English', () {
+          Navigator.of(context).pop();
+          openLink(AppConfig.englishUrl);
+        }),
+        _quick(context, Icons.shopping_bag_outlined, 'ই-কমার্স', () {
+          Navigator.of(context).pop();
+          openLink(AppConfig.shopUrl);
+        }),
+        const Divider(height: 1),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 2),
+          child: Text('ক্যাটাগরি', style: TextStyle(fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.outline)),
+        ),
+        FutureBuilder<HomeData>(
+          future: Api.home(),
+          builder: (context, snap) {
+            if (snap.connectionState != ConnectionState.done) {
+              return const Padding(padding: EdgeInsets.all(18), child: Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4))));
+            }
+            final all = snap.data?.categories ?? const <Category>[];
+            final picked = <Category>[];
+            for (final n in [...AppConfig.drawerCategories, ...AppConfig.mainCategories]) {
+              if (picked.length >= AppConfig.drawerCategories.length) break;
+              for (final c in all) {
+                if (c.name.trim() == n && !picked.contains(c)) {
+                  picked.add(c);
+                  break;
+                }
               }
-              return Column(children: [
-                for (final c in cats)
-                  ListTile(
-                    title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    trailing: Icon(Icons.chevron_right, color: primary),
-                    onTap: () => _openCat(context, c),
-                  ),
-              ]);
-            },
-          ),
+            }
+            return Column(children: [
+              for (final c in picked)
+                ListTile(
+                  dense: true,
+                  visualDensity: VisualDensity.compact,
+                  title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                  trailing: Icon(Icons.chevron_right, color: primary),
+                  onTap: () => _openCat(context, c),
+                ),
+            ]);
+          },
+        ),
+        const Divider(height: 1),
+        // মোবাইল অ্যাপ ডাউনলোড
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+          child: Text('মোবাইল অ্যাপস ডাউনলোড করুন', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: primary)),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 8, 14, 6),
+          child: Row(children: [
+            Expanded(child: _storeBtn(context, Icons.play_arrow_rounded, 'GET IT ON', 'Google Play', AppConfig.playStoreUrl)),
+            const SizedBox(width: 10),
+            Expanded(child: _storeBtn(context, Icons.apple_rounded, 'Download on the', 'App Store', AppConfig.appStoreUrl)),
+          ]),
+        ),
+        const SizedBox(height: 6),
+        const Divider(height: 1),
+        const Padding(padding: EdgeInsets.only(top: 14, bottom: 18), child: PartnersSection(compact: true)),
       ]),
+    );
+  }
+
+  /// মূল ট্যাবে যাওয়া (ড্রয়ার বন্ধ করে, খোলা পেজ সরিয়ে)
+  void _tab(BuildContext context, String type) {
+    final nav = Navigator.of(context);
+    nav.popUntil((r) => r.isFirst);
+    TabNav.onSelect?.call(type, '');
+  }
+
+  Widget _quick(BuildContext context, IconData icon, String label, VoidCallback onTap) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return ListTile(
+      dense: true,
+      visualDensity: VisualDensity.compact,
+      leading: Icon(icon, color: primary, size: 24),
+      title: Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+      onTap: onTap,
+    );
+  }
+
+  Widget _storeBtn(BuildContext context, IconData icon, String small, String big, String url) {
+    return Material(
+      color: const Color(0xFF111111),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () {
+          Navigator.of(context).pop();
+          openLink(url);
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(icon, color: Colors.white, size: 26),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                Text(small, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 9.5, height: 1.1)),
+                Text(big, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800, height: 1.15)),
+              ]),
+            ),
+          ]),
+        ),
+      ),
     );
   }
 }
