@@ -15,6 +15,7 @@ import 'shell_state.dart';
 import 'screens/reels_screen.dart';
 import 'splash.dart';
 import 'theme_pref.dart';
+import 'update_checker.dart';
 import 'screens/category_screen.dart';
 import 'screens/epaper_screen.dart';
 import 'screens/home_screen.dart';
@@ -37,6 +38,13 @@ Future<void> main() async {
   await SavedStore.load();
   await ThemePref.load();
   unawaited(RewardApi.loadConfig());
+  // ব্যবহারকারী বা প্রতিনিধি লগইন করলেই নতুন সংস্করণ থাকলে আপডেটের বার্তা
+  void onLogin() {
+    if (RewardApi.loggedIn.value || RepApi.loggedIn.value) UpdateChecker.checkAndShow(ignoreSnooze: true);
+  }
+
+  RewardApi.loggedIn.addListener(onLogin);
+  RepApi.loggedIn.addListener(onLogin);
   runApp(const NewsApp());
   // নোটিফিকেশন: অনুমতি চাওয়া + ব্যাকগ্রাউন্ডে নতুন নিউজ/ভিডিও দেখা (অ্যাপ বন্ধ থাকলেও)
   Notifier.loadHistory();
@@ -138,6 +146,7 @@ class _NewsAppState extends State<NewsApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      UpdateChecker.checkAndShow();
       ConfigStore.refreshIfStale();
       Notifier.loadHistory();
       Notifier.checkNew();
@@ -200,6 +209,8 @@ class _ShellState extends State<Shell> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) maybeShowPopup(context);
       Notifier.handleLaunch(); // নোটিফিকেশনে ট্যাপ করে অ্যাপ খুললে সেই নিউজ/ভিডিও খোলে
+      // স্প্ল্যাশ ও পপআপের পর একটু থেমে: নতুন সংস্করণ থাকলে আপডেটের বার্তা
+      Future.delayed(const Duration(milliseconds: 1800), () => UpdateChecker.checkAndShow());
     });
   }
 

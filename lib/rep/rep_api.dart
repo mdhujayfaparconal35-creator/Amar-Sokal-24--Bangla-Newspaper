@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
 import '../rewards/reward_api.dart';
 import '../sys_notify.dart';
+import '../update_checker.dart';
 
 /// প্রতিনিধি অ্যাপের সার্ভার (T2: rep_api.php)। লগইন = ডাটাবেজ নাম্বার + পাসওয়ার্ড।
 /// নিউজ জমা হয় T2-তে; যাচাইয়ের পর প্রকাশ/বাতিলের নোটিফিকেশন এখান থেকে আসে।
@@ -21,6 +22,9 @@ class RepApi {
 
   /// নতুন নোটিফিকেশন এলে বাড়ে — প্রতিনিধি পেজ এটা দেখে তালিকা নতুন করে আনে
   static final ValueNotifier<int> tick = ValueNotifier<int>(0);
+
+  /// প্যানেলের শেষবারের তথ্য (me + নিউজের তালিকা) — ফোনে রাখা থাকে, তাই প্যানেল খুললেই সাথে সাথে দেখায়, অপেক্ষা নেই
+  static Map<String, dynamic>? panelMem;
 
   static String randomId([int n = 20]) {
     const c = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -38,8 +42,15 @@ class RepApi {
           rep.value = Map<String, dynamic>.from(jsonDecode(saved) as Map);
         } catch (_) {}
       }
+      final pc = p.getString('rep_panel');
+      if (pc != null) {
+        try {
+          panelMem = Map<String, dynamic>.from(jsonDecode(pc) as Map);
+        } catch (_) {}
+      }
       loggedIn.value = _token != null && _token!.isNotEmpty;
-      if (loggedIn.value) unawaited(me().then((_) => linkReward()).catchError((_) {}));
+      // একটাই রিকোয়েস্টে পেছনে প্যানেল তৈরি রাখা — প্রতিনিধি ঢুকে দেখেন তৈরি
+      if (loggedIn.value) unawaited(panel().then((_) => linkReward()).catchError((_) {}));
     } catch (_) {}
   }
 
@@ -50,6 +61,8 @@ class RepApi {
       await p.remove('rep_token');
       await p.remove('rep_info');
       await p.remove('rep_notif_last');
+      await p.remove('rep_panel');
+      panelMem = null;
       rep.value = null;
     } else {
       await p.setString('rep_token', token);
@@ -78,7 +91,7 @@ class RepApi {
   static Future<Map<String, dynamic>> _get(String a, {Map<String, String>? q}) async {
     try {
       final u = Uri.parse(base).replace(queryParameters: {'a': a, ...?q});
-      return _parse(await http.get(u, headers: _headers).timeout(const Duration(seconds: 20)));
+      return _parse(await http.get(u, headers: _headers).timeout(const Duration(seconds: 12)));
     } on RewardError {
       rethrow;
     } catch (_) {
@@ -118,12 +131,18 @@ class RepApi {
   static Future<void> _startSession(Map<String, dynamic> j) async {
     await _setSession('${j['token']}', j['rep'] is Map ? Map<String, dynamic>.from(j['rep'] as Map) : <String, dynamic>{});
     unawaited(linkReward());
-    // লগইনের আগের নোটিফিকেশন আর দেখাবে না — এখন থেকে নতুনগুলো
-    try {
-      final n = await _get('notifs', q: {'since': '0'});
-      final p = await SharedPreferences.getInstance();
-      await p.setInt('rep_notif_last', ri(n['latest']));
-    } catch (_) {}
+    // প্যানেলের তথ্য আগেভাগে আনা শুরু (ঢোকার সাথে সাথে তৈরি থাকবে) — লগইনের জন্য কিছুই আটকে থাকে না
+    unawaited(panel().catchError((_) => <String, dynamic>{}));
+    // লগইনের আগের নোটিফিকেশন আর দেখাবে না — এখন থেকে নতুনগুলো (পেছনে)
+    unawaited(() async {
+      try {
+        final n = await _get('notifs', q: {'since': '0'});
+        final p = await SharedPreferences.getInstance();
+        await p.setInt('rep_notif_last', ri(n['latest']));
+      } catch (_) {}
+    }());
+    // লগইন করলেই নতুন সংস্করণ থাকলে আপডেটের বার্তা
+    unawaited(UpdateChecker.checkAndShow(ignoreSnooze: true));
   }
 
   static Future<void> login(String code, String password) async {
@@ -157,6 +176,20 @@ class RepApi {
         await p.setString('rep_info', jsonEncode(info));
       } catch (_) {}
     }
+    return j;
+  }
+
+  /// প্যানেলের সব তথ্য এক রিকোয়েস্টে: প্রতিনিধি, সংখ্যা, সীমা, আমার নিউজের তালিকা, আপডেট-বার্তা। ফোনেও রেখে দেয়।
+  static Future<Map<String, dynamic>> panel() async {
+    final j = await _get('panel');
+    if (j['rep'] is Map) rep.value = Map<String, dynamic>.from(j['rep'] as Map);
+    panelMem = j;
+    UpdateChecker.applyFromMap(j['update']);
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setString('rep_panel', jsonEncode(j));
+      if (rep.value != null) await p.setString('rep_info', jsonEncode(rep.value));
+    } catch (_) {}
     return j;
   }
 

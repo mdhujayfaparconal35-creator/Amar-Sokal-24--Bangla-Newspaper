@@ -6,6 +6,7 @@ import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'config.dart';
 import 'notifications.dart';
 import 'rep/rep_api.dart';
+import 'update_checker.dart';
 
 /// ব্যাকগ্রাউন্ডে (অ্যাপ বন্ধ থাকলেও) প্রতি ~১৫ মিনিটে নতুন নিউজ/ভিডিও দেখে
 @pragma('vm:entry-point')
@@ -15,6 +16,7 @@ Future<void> notifAlarmCallback() async {
     DartPluginRegistrant.ensureInitialized();
     await Notifier.checkNew();
     await RepApi.pollAndShow(); // প্রতিনিধির নিউজ প্রকাশ/বাতিলের নোটিফিকেশন
+    await UpdateChecker.pollAndNotify(); // অ্যাপের নতুন সংস্করণ এলে
   } catch (_) {}
 }
 
@@ -104,6 +106,24 @@ class SysNotify {
         styleInformation: BigTextStyleInformation(body, contentTitle: title),
       );
       await _fln.show(1900000000 + (id % 90000000), title, body, NotificationDetails(android: details), payload: payload);
+    } catch (_) {}
+  }
+
+  /// অ্যাপের নতুন সংস্করণ এলে (সবার জন্য: ব্যবহারকারী ও প্রতিনিধি)
+  static Future<void> showUpdate({required String title, required String body}) async {
+    try {
+      await init();
+      final details = AndroidNotificationDetails(
+        'as_update',
+        'অ্যাপ আপডেট',
+        channelDescription: 'অ্যাপের নতুন সংস্করণ এলে',
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@drawable/ic_stat',
+        color: AppConfig.brand,
+        styleInformation: BigTextStyleInformation(body, contentTitle: title),
+      );
+      await _fln.show(1990000001, title, body, NotificationDetails(android: details), payload: '{"t":"update"}');
     } catch (_) {}
   }
 

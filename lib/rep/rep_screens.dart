@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -5,6 +6,7 @@ import '../util.dart';
 import '../widgets.dart';
 import '../rewards/reward_api.dart';
 import '../rewards/reward_screens.dart' show rewardSnack, RewardDashboard, rewardCoin;
+import '../update_checker.dart';
 import 'rep_api.dart';
 
 Color _stColor(String s) {
@@ -18,10 +20,13 @@ Color _stColor(String s) {
   }
 }
 
+/// অ্যাডমিন অটো-পাবলিশ চালু রাখলে (প্যানেলের তথ্য থেকে জানা যায়) "যাচাই" নয়, "প্রকাশের জন্য প্রস্তুত হচ্ছে" দেখায়
+bool _autoMode = false;
+
 String _stText(String s) {
   switch (s) {
     case 'pending':
-      return 'যাচাইয়ের অপেক্ষায়';
+      return _autoMode ? 'প্রকাশের জন্য প্রস্তুত হচ্ছে' : 'যাচাইয়ের অপেক্ষায়';
     case 'published':
       return 'প্রকাশিত';
     case 'rejected':
@@ -259,10 +264,18 @@ class _RepHomeState extends State<RepHome> {
   List<Map<String, dynamic>> _news = [];
   String? _err;
   bool _loading = true;
+  Timer? _poll;
+  int _polls = 0;
 
   @override
   void initState() {
     super.initState();
+    // শেষবারের তথ্য ফোনে/মেমোরিতে থাকে — প্রথম ফ্রেমেই দেখায়, কোনো লোডিং ঘোরে না
+    final c = RepApi.panelMem;
+    if (c != null) {
+      _apply(c);
+      _loading = false;
+    }
     RepApi.tick.addListener(_load);
     _load();
     RepApi.linkReward(); // রিওয়ার্ড অ্যাকাউন্ট যুক্ত না থাকলে যুক্ত করে
@@ -270,25 +283,53 @@ class _RepHomeState extends State<RepHome> {
 
   @override
   void dispose() {
+    _poll?.cancel();
     RepApi.tick.removeListener(_load);
     super.dispose();
   }
 
+  void _apply(Map<String, dynamic> j) {
+    _me = j;
+    final lim = j['limits'] is Map ? Map<String, dynamic>.from(j['limits'] as Map) : <String, dynamic>{};
+    _autoMode = lim['auto'] == true;
+    final l = j['items'];
+    _news = l is List ? l.map((e) => Map<String, dynamic>.from(e as Map)).toList() : <Map<String, dynamic>>[];
+  }
+
+  /// প্রক্রিয়াধীন নিউজ থাকলে প্রতি ৮ সেকেন্ডে অবস্থা দেখে (অটো-পাবলিশে কয়েক সেকেন্ডেই "প্রকাশিত" হয়ে যায়)
+  void _watch() {
+    final busy = _news.any((n) => '${n['status']}' != 'published' && '${n['status']}' != 'rejected');
+    if (!busy) {
+      _poll?.cancel();
+      _poll = null;
+      _polls = 0;
+      return;
+    }
+    _poll ??= Timer.periodic(const Duration(seconds: 8), (_) {
+      if (!mounted || ++_polls > 45) {
+        _poll?.cancel();
+        _poll = null;
+        return;
+      }
+      _load();
+    });
+  }
+
   Future<void> _load() async {
     try {
-      final m = await RepApi.me();
-      final n = await RepApi.myNews();
+      final j = await RepApi.panel();
       if (!mounted) return;
       setState(() {
-        _me = m;
-        _news = n;
+        _apply(j);
         _err = null;
         _loading = false;
       });
+      _watch();
     } on RewardError catch (e) {
       if (mounted) {
         setState(() {
-          _err = e.message;
+          // তথ্য আগে থেকেই দেখানো থাকলে (ক্যাশ) ত্রুটির লাল বার্তা দিয়ে ভয় দেখাই না
+          _err = _me == null ? e.message : null;
           _loading = false;
         });
       }
@@ -297,7 +338,9 @@ class _RepHomeState extends State<RepHome> {
 
   Future<void> _newNews() async {
     final limits = _me?['limits'] is Map ? Map<String, dynamic>.from(_me!['limits'] as Map) : <String, dynamic>{};
-    final sent = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => RepSubmitScreen(minChars: ri(limits['min_chars']) == 0 ? 200 : ri(limits['min_chars']))));
+    final sent = await Navigator.of(context).push<bool>(MaterialPageRoute(
+      builder: (_) => RepSubmitScreen(minChars: ri(limits['min_chars']) == 0 ? 200 : ri(limits['min_chars']), auto: limits['auto'] == true),
+    ));
     if (sent == true) _load();
   }
 
@@ -322,10 +365,44 @@ class _RepHomeState extends State<RepHome> {
     if (ok != true) return;
     try {
       await RepApi.changePassword(o.text, n.text);
-      rewardSnack(context, 'পাসওয়ার্ড বদলানো হয়েছে।');
+      if (mounted) rewardSnack(context, 'পাসওয়ার্ড বদলানো হয়েছে।');
     } on RewardError catch (e) {
-      rewardSnack(context, e.message);
+      if (mounted) rewardSnack(context, e.message);
     }
+  }
+
+  Widget _updateCard() {
+    return ValueListenableBuilder<UpdateInfo?>(
+      valueListenable: UpdateChecker.available,
+      builder: (context, u, _) {
+        if (u == null) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: GestureDetector(
+            onTap: () => UpdateChecker.showSheet(context, u),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                gradient: const LinearGradient(colors: [Color(0xFFFFB300), Color(0xFFFF8F00)]),
+                boxShadow: [BoxShadow(color: const Color(0xFFFFB300).withAlpha(90), blurRadius: 14, offset: const Offset(0, 6))],
+              ),
+              child: Row(children: [
+                const Icon(Icons.system_update_alt_rounded, color: Color(0xFF2B1B00), size: 30),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Text('নতুন আপডেট এসেছে', style: TextStyle(color: Color(0xFF2B1B00), fontWeight: FontWeight.w800, fontSize: 16)),
+                    Text(u.version.isEmpty ? 'ট্যাপ করে আপডেট করে নিন' : 'সংস্করণ ${bn(u.version)} — ট্যাপ করে আপডেট করুন', style: const TextStyle(color: Color(0xFF2B1B00), fontSize: 13)),
+                  ]),
+                ),
+                const Icon(Icons.chevron_right_rounded, color: Color(0xFF2B1B00)),
+              ]),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -339,31 +416,39 @@ class _RepHomeState extends State<RepHome> {
           const SizedBox(width: 4),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
+      body: (_loading && _me == null)
+          ? const _RepSkeleton()
           : RefreshIndicator(
               onRefresh: _load,
-              child: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 28), children: [
+              child: ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.fromLTRB(16, 8, 16, 28), children: [
                 if (_err != null)
                   Container(
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(color: Colors.red.withAlpha(25), borderRadius: BorderRadius.circular(14)),
-                    child: Text(_err!),
+                    child: Row(children: [
+                      Expanded(child: Text(_err!)),
+                      TextButton(onPressed: _load, child: const Text('আবার')),
+                    ]),
                   ),
+                _updateCard(),
                 _profile(context),
                 const SizedBox(height: 14),
                 _stats(context),
                 const SizedBox(height: 14),
                 _coinCard(context),
                 const SizedBox(height: 14),
-                FilledButton(
-                  style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56), backgroundColor: const Color(0xFFFFB300), foregroundColor: const Color(0xFF2B1B00)),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(58), backgroundColor: const Color(0xFFFFB300), foregroundColor: const Color(0xFF2B1B00), elevation: 3, shadowColor: const Color(0xFFFFB300)),
                   onPressed: _newNews,
-                  child: const Text('নতুন নিউজ পাঠান', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
+                  icon: const Icon(Icons.edit_note_rounded, size: 28),
+                  label: const Text('নতুন নিউজ পাঠান', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
                 ),
                 const SizedBox(height: 22),
-                const Text('আমার পাঠানো নিউজ', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+                Row(children: [
+                  const Expanded(child: Text('আমার পাঠানো নিউজ', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18))),
+                  if (_news.isNotEmpty) Text('${bn(_news.length)}টি', style: TextStyle(color: cs.outline, fontWeight: FontWeight.w700)),
+                ]),
                 const SizedBox(height: 8),
                 if (_news.isEmpty)
                   Padding(
@@ -482,8 +567,16 @@ class _RepHomeState extends State<RepHome> {
         const SizedBox(width: 10),
         box('প্রকাশ হয়নি', ri(c['rejected']), Colors.red.shade700),
       ]),
-      const SizedBox(height: 8),
-      Text('আজ জমা দিয়েছেন ${bn(ri(_me?['today']))}টি / সর্বোচ্চ ${bn(ri(lim['daily_max']) == 0 ? 10 : ri(lim['daily_max']))}টি', style: const TextStyle(fontSize: 13.5)),
+      const SizedBox(height: 10),
+      Builder(builder: (context) {
+        final mx = ri(lim['daily_max']) == 0 ? 10 : ri(lim['daily_max']);
+        final used = ri(_me?['today']);
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('আজ জমা দিয়েছেন ${bn(used)}টি / সর্বোচ্চ ${bn(mx)}টি', style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          ClipRRect(borderRadius: BorderRadius.circular(6), child: LinearProgressIndicator(value: (used / mx).clamp(0.0, 1.0), minHeight: 6, color: const Color(0xFFFFB300), backgroundColor: Colors.black12)),
+        ]);
+      }),
     ]);
   }
 
@@ -545,7 +638,8 @@ class _RepHomeState extends State<RepHome> {
 // ---------------------------------------------------------------- নিউজ জমা
 class RepSubmitScreen extends StatefulWidget {
   final int minChars;
-  const RepSubmitScreen({super.key, required this.minChars});
+  final bool auto; // অটো-পাবলিশ চালু থাকলে যাচাই ছাড়াই সরাসরি প্রকাশের জন্য যায়
+  const RepSubmitScreen({super.key, required this.minChars, this.auto = false});
 
   @override
   State<RepSubmitScreen> createState() => _RepSubmitScreenState();
@@ -664,11 +758,59 @@ class _RepSubmitScreenState extends State<RepSubmitScreen> {
         FilledButton(
           style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54)),
           onPressed: (_ok && !_busy) ? _send : null,
-          child: _busy ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.6)) : const Text('যাচাইয়ের জন্য পাঠান', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+          child: _busy ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.6)) : Text(widget.auto ? 'প্রকাশের জন্য পাঠান' : 'যাচাইয়ের জন্য পাঠান', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
         ),
         const SizedBox(height: 8),
-        const Text('পাঠানোর পর অফিসে যাচাই হবে। প্রকাশ হলে বা না হলে (কারণসহ) আপনার ফোনে নোটিফিকেশন আসবে।', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, height: 1.4)),
+        Text(widget.auto ? 'পাঠানোর কিছুক্ষণের মধ্যেই নিউজ সরাসরি প্রকাশ হবে। প্রকাশ হলেই আপনার ফোনে নোটিফিকেশন আসবে।' : 'পাঠানোর পর অফিসে যাচাই হবে। প্রকাশ হলে বা না হলে (কারণসহ) আপনার ফোনে নোটিফিকেশন আসবে।', textAlign: TextAlign.center, style: const TextStyle(fontSize: 12.5, height: 1.4)),
       ]),
+    );
+  }
+}
+
+
+/// প্যানেলের তথ্য ফোনে না থাকলে (একদম প্রথমবার) ঘুরন্ত গোল চাকার বদলে কাঠামোর ঝিলিক-ধূসর ঘর
+class _RepSkeleton extends StatefulWidget {
+  const _RepSkeleton();
+
+  @override
+  State<_RepSkeleton> createState() => _RepSkeletonState();
+}
+
+class _RepSkeletonState extends State<_RepSkeleton> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000))..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final base = Theme.of(context).colorScheme.onSurface;
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, __) {
+        final a = 14 + (_c.value * 18).round();
+        Widget box(double h, {double r = 18}) => Container(height: h, decoration: BoxDecoration(color: base.withAlpha(a), borderRadius: BorderRadius.circular(r)));
+        return ListView(
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          children: [
+            box(104, r: 24),
+            const SizedBox(height: 14),
+            Row(children: [Expanded(child: box(74)), const SizedBox(width: 10), Expanded(child: box(74)), const SizedBox(width: 10), Expanded(child: box(74))]),
+            const SizedBox(height: 14),
+            box(66),
+            const SizedBox(height: 14),
+            box(58),
+            const SizedBox(height: 22),
+            box(90),
+            const SizedBox(height: 12),
+            box(90),
+          ],
+        );
+      },
     );
   }
 }

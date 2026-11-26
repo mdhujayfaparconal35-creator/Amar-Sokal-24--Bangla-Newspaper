@@ -7,6 +7,7 @@ import 'rewards/reward_screens.dart';
 import 'screens/post_screen.dart';
 import 'screens/video_player_screen.dart';
 import 'sys_notify.dart';
+import 'update_checker.dart';
 
 /// পুরো অ্যাপের একটি Navigator চাবি: নোটিফিকেশনে ট্যাপ করলে যেকোনো জায়গা থেকে নিউজ/ভিডিও খোলে
 final GlobalKey<NavigatorState> appNavKey = GlobalKey<NavigatorState>();
@@ -160,6 +161,10 @@ class Notifier {
     final nav = appNavKey.currentState;
     if (nav == null) {
       _pending = jsonEncode(m);
+      return;
+    }
+    if (m['t'] == 'update') {
+      UpdateChecker.onNotificationTap();
       return;
     }
     if (m['t'] == 'rep') {
