@@ -167,8 +167,14 @@ jobs:
 
       - run: flutter build apk --release
 
+    
       - name: Show APK signing fingerprint
-        run: keytool -printcert -jarfile build/app/outputs/flutter-apk/app-release.apk | grep -E "Owner|SHA256"
+        run: |
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          test -f "$APK" || { echo "APK not found"; exit 1; }
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
+          test -n "$APKSIGNER" || { echo "apksigner not found"; exit 1; }
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
 
       - uses: actions/upload-artifact@v4
         with:
