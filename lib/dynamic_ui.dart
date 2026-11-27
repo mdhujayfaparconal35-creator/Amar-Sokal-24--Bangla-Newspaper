@@ -26,6 +26,8 @@ IconData iconFor(String name) {
       return Icons.flash_on_outlined;
     case 'shop':
       return Icons.shopping_bag_outlined;
+    case 'photo':
+      return Icons.photo_library_outlined;
     case 'story':
       return Icons.movie_filter_outlined;
     case 'bell':
@@ -685,6 +687,7 @@ String? pageKeyOf(String type, String target) {
     case 'search':
     case 'latest':
     case 'notifications':
+    case 'photocard':
     case 'story':
     case 'epaper': // লিংক থাকলে ব্রাউজারে খোলে (Shell আগে দেখে), না থাকলে "শীঘ্রই আসছে" পেজ
       return type;
@@ -710,6 +713,11 @@ String? externalUrlOf(AppSettings s, String type, String target) {
 /// ওপরের ট্যাব বার আর Shell এর মধ্যে যোগাযোগ
 class TabNav {
   static final ValueNotifier<String> current = ValueNotifier<String>('home');
+  /// Shell-এর বর্তমান পেজ (লিংক-পেজ বন্ধ হলে হাইলাইট এখানে ফেরে)
+  static String shellCur = 'home';
+  /// এখন কয়টি অ্যাপ-ভেতরের ওয়েব পেজ খোলা
+  static int openLinks = 0;
+  static String linkKey(String type, String target) => 'link:${target.isNotEmpty ? target : type}';
   static void Function(String type, String target)? onSelect;
 }
 
@@ -744,7 +752,7 @@ class TopTabBar extends StatelessWidget implements PreferredSizeWidget {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                for (final it in items) _tab(context, it, w, cur == pageKeyOf(it.type, it.target), active, idle, conf.showLabel),
+                for (final it in items) _tab(context, it, w, cur == (pageKeyOf(it.type, it.target) ?? TabNav.linkKey(it.type, it.target)), active, idle, conf.showLabel),
               ],
             ),
           );

@@ -118,6 +118,10 @@ class RewardApi {
     }
   }
 
+  /// অন্য ফিচার (যেমন ফটো কার্ড) একই সার্ভার ও লগইন টোকেন ব্যবহার করে
+  static Future<Map<String, dynamic>> getJson(String path) => _get(path);
+  static Future<Map<String, dynamic>> postJson(String path, Map<String, String> form) => _post(path, form);
+
   static Future<void> loadConfig() async {
     try {
       final j = await _get('/config');

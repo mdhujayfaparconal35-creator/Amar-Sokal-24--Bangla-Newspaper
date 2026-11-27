@@ -106,6 +106,7 @@ class _WebPageScreenState extends State<WebPageScreen> {
   @override
   void initState() {
     super.initState();
+    TabNav.openLinks++;
     _c = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(NavigationDelegate(
@@ -136,6 +137,11 @@ class _WebPageScreenState extends State<WebPageScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    TabNav.openLinks = TabNav.openLinks > 0 ? TabNav.openLinks - 1 : 0;
+    // পেজ বন্ধ হলে (আর কোনো লিংক-পেজ খোলা না থাকলে) হাইলাইট আবার বর্তমান ট্যাবে ফেরে
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (TabNav.openLinks == 0 && TabNav.current.value.startsWith('link:')) TabNav.current.value = TabNav.shellCur;
+    });
     super.dispose();
   }
 

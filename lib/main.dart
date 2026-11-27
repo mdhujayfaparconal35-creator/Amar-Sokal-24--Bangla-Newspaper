@@ -21,6 +21,7 @@ import 'screens/category_screen.dart';
 import 'screens/epaper_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/english_home.dart';
+import 'cards/cards_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/search_screen.dart';
 import 'screens/videos_screen.dart';
@@ -260,6 +261,8 @@ class _ShellState extends State<Shell> {
         return const NotificationsScreen(inShell: true);
       case 'story':
         return const ReelsScreen(inShell: true);
+      case 'photocard':
+        return const PhotoCardsScreen(inShell: true);
       case 'epaper':
         return const EpaperScreen(inShell: true);
       case 'latest':
@@ -307,6 +310,7 @@ class _ShellState extends State<Shell> {
     final s = AppSettings.current;
     final ext = externalUrlOf(s, type, target);
     if (ext != null) {
+      TabNav.current.value = TabNav.linkKey(type, target); // ই-কমার্স ইত্যাদির আইকনই হাইলাইট থাকে
       openLink(ext);
       return;
     }
@@ -316,6 +320,7 @@ class _ShellState extends State<Shell> {
       _pages.putIfAbsent(key, () => _buildPage(key, s));
       _cur = key;
     });
+    TabNav.shellCur = key;
     TabNav.current.value = key;
   }
 
@@ -343,9 +348,10 @@ class _ShellState extends State<Shell> {
     }
     if (keys.isEmpty) keys.add('home');
     if (!keys.contains(_cur)) _cur = keys.first;
+    TabNav.shellCur = _cur;
     _pages.removeWhere((k, _) => !keys.contains(k));
     _pages.putIfAbsent(_cur, () => _buildPage(_cur, s));
-    if (TabNav.current.value != _cur) {
+    if (TabNav.current.value != _cur && TabNav.openLinks == 0) {
       WidgetsBinding.instance.addPostFrameCallback((_) => TabNav.current.value = _cur);
     }
 

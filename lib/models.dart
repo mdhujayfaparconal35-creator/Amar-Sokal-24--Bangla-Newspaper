@@ -351,6 +351,7 @@ class TopTabsConf {
         case 'videos':
         case 'search':
         case 'notifications':
+        case 'photocard':
         case 'story': // এখনো ভেতরে কিছু নেই: "শীঘ্রই আসছে" পেজ দেখায়
           return true;
         case 'category':
@@ -382,6 +383,11 @@ class TopTabsConf {
     }
     if (!list.any((t) => t.type == 'epaper')) {
       list.add(const TopTabItem(id: 'te', label: 'ই-পেপার', icon: 'paper', type: 'epaper'));
+    }
+    // "ফটো কার্ড" হোমের ঠিক পাশে
+    if (!list.any((t) => t.type == 'photocard')) {
+      final hi = list.indexWhere((t) => t.type == 'home');
+      list.insert(hi < 0 ? 0 : hi + 1, const TopTabItem(id: 'tpc', label: 'ফটো কার্ড', icon: 'photo', type: 'photocard'));
     }
     list.add(const TopTabItem(id: 'tshop', label: 'ই-কমার্স', icon: 'shop', type: 'link', target: 'https://shop.amarsokal24.com/'));
     return list;

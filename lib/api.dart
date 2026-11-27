@@ -61,6 +61,66 @@ class Api {
     return (d['items'] as List).map((e) => NewsItem.fromJson(Map<String, dynamic>.from(e))).toList();
   }
 
+  /// সার্চ: আগে অ্যাপের নিজস্ব এন্ডপয়েন্ট; ফেল করলে বা ফাঁকা এলে ওয়ার্ডপ্রেসের সাধারণ REST সার্চ।
+  static Future<List<NewsItem>> search(String q, {int page = 1, int perPage = 15}) async {
+    try {
+      final r = await posts(search: q, page: page, perPage: perPage);
+      if (r.isNotEmpty) return r;
+    } catch (_) {}
+    final uri = Uri.parse('https://amarsokal24.com/wp-json/wp/v2/posts').replace(queryParameters: {
+      'search': q,
+      'page': '$page',
+      'per_page': '$perPage',
+      '_embed': '1',
+    });
+    final res = await http.get(uri).timeout(const Duration(seconds: 15));
+    if (res.statusCode == 400) return <NewsItem>[]; // পাতা শেষ
+    if (res.statusCode != 200) throw Exception('HTTP ${res.statusCode}');
+    final list = jsonDecode(utf8.decode(res.bodyBytes)) as List;
+    String strip(dynamic v) {
+      final s = (v is Map ? v['rendered'] : v)?.toString() ?? '';
+      return s
+          .replaceAll(RegExp(r'<[^>]*>'), '')
+          .replaceAll('&#8211;', '–')
+          .replaceAll('&#8217;', "'")
+          .replaceAll('&#8216;', "'")
+          .replaceAll('&#8220;', '"')
+          .replaceAll('&#8221;', '"')
+          .replaceAll('&hellip;', '…')
+          .replaceAll('&amp;', '&')
+          .replaceAll('&nbsp;', ' ')
+          .replaceAll('&quot;', '"')
+          .replaceAll(RegExp(r'&#\d+;'), '')
+          .trim();
+    }
+
+    return list.map<NewsItem>((e) {
+      final m = Map<String, dynamic>.from(e as Map);
+      final emb = m['_embedded'];
+      var img = '';
+      Map<String, dynamic>? cat;
+      if (emb is Map) {
+        final fm = emb['wp:featuredmedia'];
+        if (fm is List && fm.isNotEmpty && fm.first is Map) img = '${(fm.first as Map)['source_url'] ?? ''}';
+        final terms = emb['wp:term'];
+        if (terms is List && terms.isNotEmpty && terms.first is List && (terms.first as List).isNotEmpty) {
+          final t = (terms.first as List).first;
+          if (t is Map) cat = {'id': t['id'], 'name': strip(t['name']), 'slug': t['slug']};
+        }
+      }
+      return NewsItem.fromJson({
+        'id': m['id'],
+        'title': strip(m['title']),
+        'excerpt': strip(m['excerpt']),
+        'image': img,
+        'date': '${m['date_gmt'] ?? m['date'] ?? ''}',
+        'link': '${m['link'] ?? ''}',
+        'reporter': '',
+        if (cat != null) 'category': cat,
+      });
+    }).toList();
+  }
+
   static Future<NewsDetail> post(int id) async {
     final d = await _get('/post/$id', ttl: 300);
     return NewsDetail.fromJson(Map<String, dynamic>.from(d));

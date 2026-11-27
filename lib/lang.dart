@@ -31,6 +31,7 @@ class Lang {
     'নোটিফিকেশন': 'Notifications',
     'ই-পেপার': 'E-Paper',
     'ই-কমার্স': 'E-Commerce',
+    'ফটো কার্ড': 'Photo Cards',
     'সর্বশেষ': 'Latest',
     'সার্চ': 'Search',
     'মেনু': 'Menu',
