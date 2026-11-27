@@ -65,6 +65,26 @@ class FakeStats {
     return base + 7 * (_mOpens[id] ?? 0);
   }
 
+  /// রিলসের লাইক: ভিউয়ের ভিত্তি সংখ্যার প্রায় ৪-১১% (গোল নয়), সর্বনিম্ন ১৩।
+  /// প্রতিটি রিলসের নিজস্ব স্থির সংখ্যা; ব্যবহারকারী লাইক দিলে ১ বাড়ে (অ্যাপ থেকে যোগ হয়)।
+  static int mediaLikes(String id) {
+    final n = _hs(id);
+    final t = _h(n, 21) % 20;
+    int base;
+    if (t < 13) {
+      base = 600 + _h(n, 22) % 1380;
+    } else if (t < 18) {
+      base = 2000 + _h(n, 23) % 3900;
+    } else {
+      base = 68000 + _h(n, 24) % 27000;
+    }
+    final pct = 4 + _h(n, 41) % 8; // ৪-১১%
+    var likes = base * pct ~/ 100 + _h(n, 42) % 17;
+    if (likes < 13) likes = 13 + _h(n, 43) % 20;
+    if (likes % 10 == 0) likes += 1 + _h(n, 44) % 9;
+    return likes;
+  }
+
   /// ফটো কার্ডের লাইকের ভিত্তি (আসল লাইকের সাথে যোগ হয়): সর্বনিম্ন ১৩।
   /// ৬০% ১৩-১৪৯, ২৫% ১৫০-৬৯৯, ১০% ৭০০-১,৭৯৯, ৫% ১,৮০০-৩,১০০
   static int cardLikes(String id) {

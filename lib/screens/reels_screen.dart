@@ -356,7 +356,7 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver, 
         bottom: 34,
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           _act(Icons.remove_red_eye_outlined, FakeStats.fmt(FakeStats.mediaViews(it.id)), () {}),
-          _act(_liked.contains(it.id) ? Icons.favorite : Icons.favorite_border, 'পছন্দ', () => _like(it), color: _liked.contains(it.id) ? const Color(0xFFFF4D6D) : Colors.white),
+          _act(_liked.contains(it.id) ? Icons.favorite : Icons.favorite_border, FakeStats.fmt(FakeStats.mediaLikes(it.id) + (_liked.contains(it.id) ? 1 : 0)), () => _like(it), color: _liked.contains(it.id) ? const Color(0xFFFF4D6D) : Colors.white),
           _act(Icons.share, 'শেয়ার', () => shareTo(context, 'fb', it.title.isEmpty ? 'আমার সকাল ২৪ রিলস' : it.title, it.permalink)),
           _act(_muted ? Icons.volume_off : Icons.volume_up, _muted ? 'শব্দ বন্ধ' : 'শব্দ', _toggleMute),
           _act(Icons.open_in_new, 'ফেসবুকে', () => openLink(it.permalink.isEmpty ? AppConfig.reelsUrl : it.permalink)),
