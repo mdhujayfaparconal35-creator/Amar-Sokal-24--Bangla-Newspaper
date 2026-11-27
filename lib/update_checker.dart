@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'apk_downloader.dart';
 import 'config.dart';
 import 'notifications.dart';
 import 'sys_notify.dart';
@@ -200,42 +201,24 @@ class _UpdateSheetState extends State<_UpdateSheet> {
       _pct = 0;
       _msg = 'ডাউনলোড শুরু হচ্ছে…';
     });
-    final client = http.Client();
     try {
       final dir = await getTemporaryDirectory();
       final f = File('${dir.path}/amarsokal24_update.apk');
-      if (await f.exists()) await f.delete();
-      final res = await client.send(http.Request('GET', Uri.parse(UpdateChecker.directUrl(info.url)))).timeout(const Duration(seconds: 40));
-      if (res.statusCode != 200) throw 'http ${res.statusCode}';
-      final total = res.contentLength ?? 0;
-      var got = 0;
-      var first = true;
       var lastShown = -1;
-      final sink = f.openWrite();
-      try {
-        await for (final chunk in res.stream) {
-          if (first) {
-            first = false;
-            // APK আসলে জিপ ফাইল ("PK" দিয়ে শুরু); ড্রাইভ/সাইটের HTML পাতা এলে এখানেই ধরা পড়ে
-            if (chunk.length < 2 || chunk[0] != 0x50 || chunk[1] != 0x4B) throw 'notapk';
-          }
-          sink.add(chunk);
-          got += chunk.length;
-          if (!mounted) return;
-          final shown = total > 0 ? (got * 100 ~/ total) : (got ~/ 400000);
-          if (shown != lastShown) {
-            lastShown = shown;
-            setState(() {
-              _pct = total > 0 ? shown : 0;
-              _msg = total > 0 ? 'ডাউনলোড হচ্ছে…' : 'ডাউনলোড হচ্ছে… ${(got / 1048576).toStringAsFixed(1)} MB';
-            });
-          }
-        }
-      } finally {
-        await sink.close();
-      }
-      if (got < 1000000) throw 'small';
+      await ApkDownloader.download(UpdateChecker.directUrl(info.url), f, (got, total) {
+        if (!mounted) return;
+        final shown = total > 0 ? (got * 100 ~/ total) : (got ~/ 400000);
+        if (shown == lastShown) return;
+        lastShown = shown;
+        setState(() {
+          _pct = total > 0 ? shown : 0;
+          _msg = total > 0
+              ? 'ডাউনলোড হচ্ছে… ${bn((got / 1048576).toStringAsFixed(1))}/${bn((total / 1048576).toStringAsFixed(1))} MB •'
+              : 'ডাউনলোড হচ্ছে… ${bn((got / 1048576).toStringAsFixed(1))} MB';
+        });
+      });
       if (!mounted) return;
+      if (await f.length() < 1000000) throw 'small';
       setState(() {
         _pct = 100;
         _msg = 'ইনস্টলার খুলছে…';
@@ -256,8 +239,6 @@ class _UpdateSheetState extends State<_UpdateSheet> {
       _fail(e == 'notapk'
           ? 'ডাউনলোড লিংকে APK ফাইল পাওয়া যায়নি (লিংক ঠিক আছে কিনা দেখুন)। নিচের "ব্রাউজারে ডাউনলোড" চাপুন।'
           : 'ডাউনলোড করা যায়নি। ইন্টারনেট দেখে আবার চেষ্টা করুন বা নিচের "ব্রাউজারে ডাউনলোড" চাপুন।');
-    } finally {
-      client.close();
     }
   }
 

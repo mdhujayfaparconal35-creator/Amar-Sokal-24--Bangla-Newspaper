@@ -1,0 +1,13 @@
+# এই ফাইলের লেখা কপি করে সার্ভারের /public_html/app/ ফোল্ডারে ".htaccess" নামে রাখুন
+AddType application/vnd.android.package-archive .apk
+# APK আগে থেকেই কম্প্রেসড; আবার গজিপ করলে ধীর হয় ও সাইজ জানা যায় না
+SetEnv no-gzip 1
+<IfModule mod_deflate.c>
+  SetEnvIfNoCase Request_URI \.apk$ no-gzip dont-vary
+</IfModule>
+<IfModule mod_headers.c>
+  Header set Accept-Ranges bytes
+  Header set Cache-Control "public, max-age=86400"
+</IfModule>
+# ফোল্ডারের ফাইল তালিকা বন্ধ
+Options -Indexes
