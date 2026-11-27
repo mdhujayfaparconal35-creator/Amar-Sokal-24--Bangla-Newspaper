@@ -22,7 +22,7 @@ class AppConfig {
   /// এই APK-র Build নম্বর (pubspec.yaml এর version এর + এর পরের সংখ্যা, যেমন 1.1.0+2 => 2)।
   /// নতুন Native ফিচার সহ APK বের করলে দুটোই একসাথে বাড়ান; অ্যাডমিনে "ন্যূনতম Build নম্বর" দিলে
   /// তার চেয়ে পুরনো অ্যাপে আপডেটের বার্তা আসবে।
-  static const int build = 30;
+  static const int build = 31;
 
   /// কনফিগ কত মিনিট পর পর নতুন আছে কিনা দেখবে (অ্যাপ খোলা অবস্থায়)।
   static const int configRefreshMinutes = 5;

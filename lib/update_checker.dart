@@ -181,6 +181,7 @@ class _UpdateSheetState extends State<_UpdateSheet> {
   UpdateInfo get info => widget.info;
   bool _busy = false;
   bool _failed = false;
+  bool _legacy = false; // নেটিভ ইনস্টলার না পেয়ে আগের পদ্ধতিতে খোলা হয়েছে
   int _pct = 0;
   String _msg = '';
 
@@ -289,7 +290,8 @@ class _UpdateSheetState extends State<_UpdateSheet> {
       if (r.type == ResultType.done) {
         setState(() {
           _busy = false;
-          _msg = 'ইনস্টলার খুলেছে — ফোনের "ইনস্টল/আপডেট" বাটনে চাপুন।';
+          _legacy = true;
+          _msg = 'ইনস্টলার খুলেছে — ফোনের "ইনস্টল/আপডেট" বাটনে চাপুন।\nফোনের ইনস্টল স্ক্রিন না এলে নিচের "ব্রাউজারে ডাউনলোড" চাপুন (নেটিভ ইনস্টলার নেই)।';
         });
       } else if (r.type == ResultType.permissionDenied) {
         _fail('ইনস্টলের অনুমতি লাগবে। ফোনের সেটিংসে এই অ্যাপকে "অ্যাপ ইনস্টল করার অনুমতি" দিয়ে আবার "আবার চেষ্টা করুন" চাপুন।');
@@ -380,7 +382,7 @@ class _UpdateSheetState extends State<_UpdateSheet> {
                 icon: const Icon(Icons.download_rounded),
                 label: Text(_busy ? 'নামছে…' : (_failed ? 'আবার চেষ্টা করুন' : 'এখনই আপডেট করুন'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16.5)),
               ),
-              if (_failed)
+              if (_failed || _legacy)
                 TextButton(onPressed: () => UpdateChecker.startUpdate(info), child: const Text('ব্রাউজারে ডাউনলোড')),
               if (!info.force && !_busy)
                 TextButton(
