@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:io';
 import 'package:open_filex/open_filex.dart';
@@ -192,6 +193,64 @@ class _UpdateSheetState extends State<_UpdateSheet> {
     });
   }
 
+  static const MethodChannel _ch = MethodChannel('amarsokal24/installer');
+
+  /// ফেরত true = এই পদ্ধতিতে সামলানো হয়েছে (সফল/ব্যর্থ পর্দায় দেখানো হয়েছে); false = নেটিভ ইনস্টলার নেই, আগের পদ্ধতিতে যাও
+  Future<bool> _nativeInstall(File f) async {
+    try {
+      final can = await _ch.invokeMethod<bool>('canInstall') ?? true;
+      if (!can) {
+        await _ch.invokeMethod('openInstallSettings');
+        _fail('ফোনের সেটিংসে এই অ্যাপের জন্য "অজানা অ্যাপ ইনস্টল করার অনুমতি" চালু করুন, তারপর ফিরে এসে আবার চেষ্টা করুন।');
+        return true;
+      }
+      if (mounted) {
+        setState(() {
+          _busy = true;
+          _failed = false;
+          _msg = 'ফোনের ইনস্টলারে "আপডেট/ইনস্টল" বাটনে চাপুন';
+        });
+      }
+      final r = await _ch.invokeMethod<Map>('install', {'path': f.path});
+      if (!mounted) return true;
+      final status = (r?['status'] as num?)?.toInt() ?? 1;
+      final msg = '${r?['message'] ?? ''}';
+      if (status == 0) {
+        setState(() {
+          _busy = false;
+          _failed = false;
+          _msg = 'আপডেট সম্পন্ন! অ্যাপ আবার চালু করুন।';
+        });
+      } else {
+        _fail(_reason(status, msg));
+      }
+      return true;
+    } on MissingPluginException {
+      return false;
+    } on PlatformException catch (e) {
+      _fail('ইনস্টল শুরু করা যায়নি: ${e.message ?? e.code}');
+      return true;
+    }
+  }
+
+  String _reason(int s, String m) {
+    final extra = m.isEmpty ? '' : '\n($m)';
+    switch (s) {
+      case 3:
+        return 'ইনস্টল বাতিল হয়েছে। আবার চেষ্টা করুন।';
+      case 2:
+        return 'ফোনের নিরাপত্তা ব্যবস্থা (Play Protect/সিকিউরিটি) ইনস্টল আটকে দিয়েছে। "তবুও ইনস্টল করুন" বেছে নিন।$extra';
+      case 4:
+      case 5:
+      case 7:
+        return 'ফোনে থাকা অ্যাপের সাইনের সাথে নতুন APK-র সাইন মিলছে না। পুরনো অ্যাপ আনইনস্টল করে নতুনটা ইনস্টল করুন।$extra';
+      case 6:
+        return 'ফোনে জায়গা কম। কিছু জায়গা খালি করে আবার চেষ্টা করুন।$extra';
+      default:
+        return 'ইনস্টল হয়নি।$extra';
+    }
+  }
+
   /// অ্যাপের ভেতরেই APK নামিয়ে (প্রগ্রেস সহ) ফোনের ইনস্টলার খোলে
   Future<void> _install() async {
     if (_busy) return;
@@ -223,6 +282,8 @@ class _UpdateSheetState extends State<_UpdateSheet> {
         _pct = 100;
         _msg = 'ইনস্টলার খুলছে…';
       });
+      // প্রথমে অ্যাপের নিজস্ব ইনস্টলার (আসল ফলাফল/কারণ দেখায়); না পেলে আগের পদ্ধতি
+      if (await _nativeInstall(f)) return;
       final r = await OpenFilex.open(f.path, type: 'application/vnd.android.package-archive');
       if (!mounted) return;
       if (r.type == ResultType.done) {
