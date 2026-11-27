@@ -267,6 +267,17 @@ class _FbVideoPlayerScreenState extends State<FbVideoPlayerScreen> {
           child: Text('${AppConfig.siteName}${ago.isEmpty ? '' : '  •  $ago'}  •  ${FakeStats.fmt(FakeStats.mediaViews(v.id))} বার দেখা', style: TextStyle(fontSize: 13.5, color: t.colorScheme.outline)),
         ),
         Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: () => setState(() => FakeStats.toggleLike(v.id)),
+              icon: Icon(FakeStats.isLiked(v.id) ? Icons.favorite : Icons.favorite_border, size: 19, color: FakeStats.isLiked(v.id) ? const Color(0xFFFF4D6D) : null),
+              label: Text('${FakeStats.fmt(FakeStats.mediaLikeCount(v.id))} পছন্দ', style: TextStyle(fontWeight: FontWeight.w700, color: FakeStats.isLiked(v.id) ? const Color(0xFFFF4D6D) : null)),
+            ),
+          ),
+        ),
+        Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
           child: Row(children: [
             Expanded(child: ShareRow(title: v.title.isEmpty ? AppConfig.siteName : v.title, link: v.permalink)),

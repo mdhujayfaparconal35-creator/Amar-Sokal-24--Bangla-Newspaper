@@ -13,6 +13,10 @@ class FakeStats {
   static Map<String, int> _mOpens = {};
   static const _mk = 'fake_media_opens';
 
+  // ভিডিও/রিলসে ব্যবহারকারীর নিজের দেওয়া লাইক (ফোনে সংরক্ষিত থাকে)
+  static Set<String> _mLiked = {};
+  static const _lk = 'media_liked';
+
   static Future<void> load() async {
     try {
       final p = await SharedPreferences.getInstance();
@@ -20,6 +24,10 @@ class FakeStats {
       if (s != null) {
         _opens = (jsonDecode(s) as Map).map((k, v) => MapEntry('$k', (v as num).toInt()));
       }
+    } catch (_) {}
+    try {
+      final p = await SharedPreferences.getInstance();
+      _mLiked = (p.getStringList(_lk) ?? const <String>[]).toSet();
     } catch (_) {}
     try {
       final p = await SharedPreferences.getInstance();
@@ -83,6 +91,36 @@ class FakeStats {
     if (likes < 13) likes = 13 + _h(n, 43) % 20;
     if (likes % 10 == 0) likes += 1 + _h(n, 44) % 9;
     return likes;
+  }
+
+  static bool isLiked(String id) => _mLiked.contains(id);
+
+  /// ভিডিও/রিলসের মোট লাইক = ডিফল্ট সংখ্যা + ব্যবহারকারীর নিজের লাইক (১)
+  static int mediaLikeCount(String id) => mediaLikes(id) + (_mLiked.contains(id) ? 1 : 0);
+
+  /// লাইক দেওয়া/তোলা। ফেরত: এখন লাইক দেওয়া আছে কিনা
+  static bool setLiked(String id, bool on) {
+    if (id.isEmpty) return false;
+    if (on) {
+      _mLiked.add(id);
+    } else {
+      _mLiked.remove(id);
+    }
+    if (_mLiked.length > 2000) {
+      final drop = _mLiked.take(_mLiked.length - 2000).toList();
+      _mLiked.removeAll(drop);
+    }
+    _saveLiked();
+    return on;
+  }
+
+  static bool toggleLike(String id) => setLiked(id, !_mLiked.contains(id));
+
+  static Future<void> _saveLiked() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setStringList(_lk, _mLiked.toList());
+    } catch (_) {}
   }
 
   /// ফটো কার্ডের লাইকের ভিত্তি (আসল লাইকের সাথে যোগ হয়): সর্বনিম্ন ১৩।

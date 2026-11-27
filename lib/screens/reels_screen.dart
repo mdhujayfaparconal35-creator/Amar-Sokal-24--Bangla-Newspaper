@@ -26,7 +26,6 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver, 
   final PageController _pc = PageController();
   final Map<int, VideoPlayerController> _vc = {};
   final Set<String> _failed = {};
-  final Set<String> _liked = {};
   final Set<String> _viewed = {}; // এই স্ক্রিনে যে রিলসের ভিউ একবার গোনা হয়েছে
   int _cur = 0;
   final MediaRewardTracker _rw = MediaRewardTracker('reel');
@@ -234,9 +233,9 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver, 
   void _like(FbVideo it, {bool fromDoubleTap = false}) {
     setState(() {
       if (fromDoubleTap) {
-        _liked.add(it.id);
-      } else if (!_liked.remove(it.id)) {
-        _liked.add(it.id);
+        FakeStats.setLiked(it.id, true);
+      } else {
+        FakeStats.toggleLike(it.id);
       }
       if (fromDoubleTap) {
         _heartAt = _tapPos;
@@ -356,7 +355,7 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver, 
         bottom: 34,
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           _act(Icons.remove_red_eye_outlined, FakeStats.fmt(FakeStats.mediaViews(it.id)), () {}),
-          _act(_liked.contains(it.id) ? Icons.favorite : Icons.favorite_border, FakeStats.fmt(FakeStats.mediaLikes(it.id) + (_liked.contains(it.id) ? 1 : 0)), () => _like(it), color: _liked.contains(it.id) ? const Color(0xFFFF4D6D) : Colors.white),
+          _act(FakeStats.isLiked(it.id) ? Icons.favorite : Icons.favorite_border, FakeStats.fmt(FakeStats.mediaLikeCount(it.id)), () => _like(it), color: FakeStats.isLiked(it.id) ? const Color(0xFFFF4D6D) : Colors.white),
           _act(Icons.share, 'শেয়ার', () => shareTo(context, 'fb', it.title.isEmpty ? 'আমার সকাল ২৪ রিলস' : it.title, it.permalink)),
           _act(_muted ? Icons.volume_off : Icons.volume_up, _muted ? 'শব্দ বন্ধ' : 'শব্দ', _toggleMute),
           _act(Icons.open_in_new, 'ফেসবুকে', () => openLink(it.permalink.isEmpty ? AppConfig.reelsUrl : it.permalink)),
