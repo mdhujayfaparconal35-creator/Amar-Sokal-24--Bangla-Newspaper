@@ -719,6 +719,30 @@ class TabNav {
   static int openLinks = 0;
   static String linkKey(String type, String target) => 'link:${target.isNotEmpty ? target : type}';
   static void Function(String type, String target)? onSelect;
+
+  /// একই ট্যাবে আবার ট্যাপ করলে (যেমন ফটো কার্ডে থেকে ফটো কার্ড মেনুতে) এটা বাড়ে — পেজ ওপরে ফিরে যায়
+  static final ValueNotifier<int> reselect = ValueNotifier<int>(0);
+  static String reselectKey = '';
+  static void pingReselect(String key) {
+    reselectKey = key;
+    reselect.value++;
+  }
+
+  /// [key] ট্যাবে আবার ট্যাপ হলে [f] চলবে। ফেরত আসা ফাংশনটা dispose-এ ডাকতে হবে।
+  static VoidCallback onReselect(String key, VoidCallback f) {
+    void l() {
+      if (reselectKey == key) f();
+    }
+
+    reselect.addListener(l);
+    return () => reselect.removeListener(l);
+  }
+
+  static void scrollTop(ScrollController c) {
+    if (c.hasClients && c.offset > 0) {
+      c.animateTo(0, duration: const Duration(milliseconds: 450), curve: Curves.easeOutCubic);
+    }
+  }
 }
 
 /// হেডারের নিচের আইকন ট্যাব বার (অ্যাডমিন: "লোগো ও ওপরের ট্যাব")

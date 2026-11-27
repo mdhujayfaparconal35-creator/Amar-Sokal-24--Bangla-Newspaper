@@ -3,7 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'fake_stats.dart';
 import 'config.dart';
-import 'dynamic_ui.dart' show popupOnReload;
+import 'dynamic_ui.dart' show popupOnReload, TabNav;
 import 'screens/video_player_screen.dart';
 import 'models.dart';
 import 'util.dart';
@@ -811,7 +811,9 @@ class PagedList<T> extends StatefulWidget {
   final Widget Function(BuildContext, T) itemBuilder;
   /// প্রতি এত আইটেম পরপর একটি বিজ্ঞাপন (০ = নেই)
   final int adEvery;
-  const PagedList({super.key, required this.fetch, required this.pageSize, required this.itemBuilder, this.adEvery = 0});
+  /// ট্যাব-কী (যেমন 'latest', 'category:5'); একই ট্যাবে আবার ট্যাপ করলে ওপরে ফিরবে
+  final String? tabKey;
+  const PagedList({super.key, required this.fetch, required this.pageSize, required this.itemBuilder, this.adEvery = 0, this.tabKey});
 
   @override
   State<PagedList<T>> createState() => _PagedListState<T>();
@@ -820,12 +822,15 @@ class PagedList<T> extends StatefulWidget {
 class _PagedListState<T> extends State<PagedList<T>> {
   final List<T> _items = [];
   final ScrollController _sc = ScrollController();
+  VoidCallback? _unRe;
   int _page = 1;
   bool _loading = false, _done = false, _error = false;
 
   @override
   void initState() {
     super.initState();
+    final tk = widget.tabKey;
+    if (tk != null) _unRe = TabNav.onReselect(tk, () => TabNav.scrollTop(_sc));
     _sc.addListener(() {
       if (_sc.position.pixels > _sc.position.maxScrollExtent - 500) _load();
     });
@@ -834,6 +839,7 @@ class _PagedListState<T> extends State<PagedList<T>> {
 
   @override
   void dispose() {
+    _unRe?.call();
     _sc.dispose();
     super.dispose();
   }

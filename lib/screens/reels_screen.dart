@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import '../config.dart';
 import '../dynamic_ui.dart';
+import '../fake_stats.dart';
 import '../fb/fb_media.dart';
 import '../shell_state.dart';
 import '../rewards/media_reward.dart';
@@ -26,9 +27,11 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver, 
   final Map<int, VideoPlayerController> _vc = {};
   final Set<String> _failed = {};
   final Set<String> _liked = {};
+  final Set<String> _viewed = {}; // এই স্ক্রিনে যে রিলসের ভিউ একবার গোনা হয়েছে
   int _cur = 0;
   final MediaRewardTracker _rw = MediaRewardTracker('reel');
   Timer? _rwTimer;
+  VoidCallback? _unRe;
   bool _muted = false;
   bool _tabOn = true;
   bool _routeOn = true;
@@ -46,6 +49,10 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver, 
     WidgetsBinding.instance.addObserver(this);
     _tabOn = !widget.inShell || TabNav.current.value == 'story';
     TabNav.current.addListener(_onTab);
+    // রিলসে থেকে রিলস মেনুতে আবার ট্যাপ করলে প্রথম রিলসে ফিরে যায়
+    _unRe = TabNav.onReselect('story', () {
+      if (_pc.hasClients && _cur != 0) _pc.animateToPage(0, duration: const Duration(milliseconds: 450), curve: Curves.easeOutCubic);
+    });
     // রিলসের আসলে-চলা সময় গোনা (প্রতি আধা সেকেন্ডে)
     _rwTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
       final c = _vc[_cur];
@@ -70,6 +77,7 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver, 
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     TabNav.current.removeListener(_onTab);
+    _unRe?.call();
     appRouteObserver.unsubscribe(this);
     _rwTimer?.cancel();
     _rw.dispose();
@@ -137,6 +145,7 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver, 
       _ensure(0);
       _ensure(1);
       _rw.reset(cached.items.first.id);
+      _countView(cached.items.first.id);
     }
     final f = await FbMedia.reels();
     if (!mounted) return;
@@ -161,7 +170,12 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver, 
       _ensure(0);
       _ensure(1);
       _rw.reset(f.items.first.id);
+      _countView(f.items.first.id);
     }
+  }
+
+  void _countView(String id) {
+    if (_viewed.add(id)) FakeStats.bumpMedia(id); // প্রতিটি রিলস দেখলে ভিউ ৭ করে বাড়ে
   }
 
   void _ensure(int i) {
@@ -184,7 +198,10 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver, 
   void _onPage(int i) {
     _vc[_cur]?.pause();
     _cur = i;
-    if (i < _items.length) _rw.reset(_items[i].id);
+    if (i < _items.length) {
+      _rw.reset(_items[i].id);
+      _countView(_items[i].id);
+    }
     for (final k in _vc.keys.toList()) {
       if ((k - i).abs() > 1) {
         _vc.remove(k)?.dispose();
@@ -338,6 +355,7 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver, 
         right: 8,
         bottom: 34,
         child: Column(mainAxisSize: MainAxisSize.min, children: [
+          _act(Icons.remove_red_eye_outlined, FakeStats.fmt(FakeStats.mediaViews(it.id)), () {}),
           _act(_liked.contains(it.id) ? Icons.favorite : Icons.favorite_border, 'পছন্দ', () => _like(it), color: _liked.contains(it.id) ? const Color(0xFFFF4D6D) : Colors.white),
           _act(Icons.share, 'শেয়ার', () => shareTo(context, 'fb', it.title.isEmpty ? 'আমার সকাল ২৪ রিলস' : it.title, it.permalink)),
           _act(_muted ? Icons.volume_off : Icons.volume_up, _muted ? 'শব্দ বন্ধ' : 'শব্দ', _toggleMute),

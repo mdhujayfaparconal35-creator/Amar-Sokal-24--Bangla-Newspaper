@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../config.dart';
 import '../dynamic_ui.dart';
+import '../fake_stats.dart';
 import '../fb/fb_media.dart';
 import '../util.dart';
 import 'fb_video_player_screen.dart';
@@ -19,11 +20,21 @@ class _VideosScreenState extends State<VideosScreen> {
   List<FbVideo> _items = [];
   bool _loading = true;
   String? _err;
+  final ScrollController _sc = ScrollController();
+  VoidCallback? _unRe;
 
   @override
   void initState() {
     super.initState();
+    if (widget.inShell) _unRe = TabNav.onReselect('videos', () => TabNav.scrollTop(_sc));
     _init();
+  }
+
+  @override
+  void dispose() {
+    _unRe?.call();
+    _sc.dispose();
+    super.dispose();
   }
 
   Future<void> _init() async {
@@ -57,7 +68,9 @@ class _VideosScreenState extends State<VideosScreen> {
       transitionDuration: const Duration(milliseconds: 220),
       pageBuilder: (_, __, ___) => FbVideoPlayerScreen(video: v, others: _items),
       transitionsBuilder: (_, a, __, child) => FadeTransition(opacity: a, child: child),
-    ));
+    )).then((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   Widget _body() {
@@ -83,6 +96,7 @@ class _VideosScreenState extends State<VideosScreen> {
     return RefreshIndicator(
       onRefresh: _refresh,
       child: ListView.builder(
+        controller: _sc,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
         itemCount: _items.length,
@@ -174,7 +188,7 @@ class _VideoTile extends StatelessWidget {
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(v.title.isEmpty ? AppConfig.siteName : v.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, height: 1.35)),
                     const SizedBox(height: 5),
-                    Text('${AppConfig.siteName}${ago.isEmpty ? '' : '  •  $ago'}', style: TextStyle(fontSize: 12.5, color: t.colorScheme.outline)),
+                    Text('${AppConfig.siteName}${ago.isEmpty ? '' : '  •  $ago'}  •  ${FakeStats.fmt(FakeStats.mediaViews(v.id))} বার দেখা', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: t.colorScheme.outline)),
                   ]),
                 ),
                 IconButton(

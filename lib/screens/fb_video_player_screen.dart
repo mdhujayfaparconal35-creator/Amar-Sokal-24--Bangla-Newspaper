@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import '../config.dart';
+import '../fake_stats.dart';
 import '../fb/fb_media.dart';
 import '../rewards/media_reward.dart';
 import '../util.dart';
@@ -34,6 +35,7 @@ class _FbVideoPlayerScreenState extends State<FbVideoPlayerScreen> {
   void initState() {
     super.initState();
     _rw.reset(v.id);
+    FakeStats.bumpMedia(v.id); // প্রতিবার দেখলে ভিউ ৭ করে বাড়ে
     _init();
   }
 
@@ -262,7 +264,7 @@ class _FbVideoPlayerScreenState extends State<FbVideoPlayerScreen> {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-          child: Text('${AppConfig.siteName}${ago.isEmpty ? '' : '  •  $ago'}', style: TextStyle(fontSize: 13.5, color: t.colorScheme.outline)),
+          child: Text('${AppConfig.siteName}${ago.isEmpty ? '' : '  •  $ago'}  •  ${FakeStats.fmt(FakeStats.mediaViews(v.id))} বার দেখা', style: TextStyle(fontSize: 13.5, color: t.colorScheme.outline)),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
@@ -295,7 +297,13 @@ class _FbVideoPlayerScreenState extends State<FbVideoPlayerScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                Expanded(child: Text(e.title.isEmpty ? AppConfig.siteName : e.title, maxLines: 4, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, height: 1.35))),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(e.title.isEmpty ? AppConfig.siteName : e.title, maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, height: 1.35)),
+                    const SizedBox(height: 4),
+                    Text('${FakeStats.fmt(FakeStats.mediaViews(e.id))} বার দেখা', style: TextStyle(fontSize: 12, color: t.colorScheme.outline)),
+                  ]),
+                ),
               ]),
             ),
           ),

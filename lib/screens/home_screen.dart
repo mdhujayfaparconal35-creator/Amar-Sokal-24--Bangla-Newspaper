@@ -22,10 +22,12 @@ class _HomeScreenState extends State<HomeScreen> {
   late Future<HomeData> _future = Api.home();
   final ScrollController _sc = ScrollController();
   final ValueNotifier<bool> _showTop = ValueNotifier<bool>(false);
+  VoidCallback? _unRe;
 
   @override
   void initState() {
     super.initState();
+    _unRe = TabNav.onReselect('home', () => TabNav.scrollTop(_sc));
     _sc.addListener(() {
       final v = _sc.hasClients && _sc.offset > 800;
       if (v != _showTop.value) _showTop.value = v;
@@ -34,6 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _unRe?.call();
     _sc.dispose();
     _showTop.dispose();
     super.dispose();
@@ -340,7 +343,9 @@ class _HomeFbVideosState extends State<HomeFbVideos> {
   }
 
   void _open(FbVideo v) {
-    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => FbVideoPlayerScreen(video: v, others: _items)));
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => FbVideoPlayerScreen(video: v, others: _items))).then((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -403,6 +408,19 @@ class _HomeFbVideosState extends State<HomeFbVideos> {
                               child: Text(bn(v.lengthText), style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w800)),
                             ),
                           ),
+                        Positioned(
+                          left: 8,
+                          bottom: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(color: Colors.black.withAlpha(170), borderRadius: BorderRadius.circular(7)),
+                            child: Row(mainAxisSize: MainAxisSize.min, children: [
+                              const Icon(Icons.remove_red_eye_outlined, color: Colors.white, size: 13),
+                              const SizedBox(width: 4),
+                              Text(FakeStats.fmt(FakeStats.mediaViews(v.id)), style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w800)),
+                            ]),
+                          ),
+                        ),
                         if (ri(coin) > 0)
                           Positioned(
                             left: 8,

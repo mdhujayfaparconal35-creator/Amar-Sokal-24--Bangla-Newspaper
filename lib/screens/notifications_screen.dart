@@ -18,6 +18,8 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   bool _on = true;
+  final ScrollController _sc = ScrollController();
+  VoidCallback? _unRe;
   bool _osOn = true; // ফোনের সেটিংসে অ্যাপের নোটিফিকেশন চালু আছে কিনা
 
   Future<void> _checkOs() async {
@@ -28,12 +30,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.inShell) _unRe = TabNav.onReselect('notifications', () => TabNav.scrollTop(_sc));
     Notifier.loadHistory();
     Notifier.checkNew();
     _checkOs();
     Notifier.isOn().then((v) {
       if (mounted) setState(() => _on = v);
     });
+  }
+
+  @override
+  void dispose() {
+    _unRe?.call();
+    _sc.dispose();
+    super.dispose();
   }
 
   @override
@@ -46,7 +56,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         valueListenable: ConfigStore.notifier,
         builder: (context, s, _) {
           final list = s.breaking.items;
-          return ListView(padding: const EdgeInsets.only(bottom: 24), children: [
+          return ListView(controller: _sc, padding: const EdgeInsets.only(bottom: 24), children: [
             Container(
               margin: const EdgeInsets.fromLTRB(12, 14, 12, 8),
               padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),

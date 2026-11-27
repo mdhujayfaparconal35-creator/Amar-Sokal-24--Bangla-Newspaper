@@ -316,12 +316,14 @@ class _ShellState extends State<Shell> {
     }
     final key = pageKeyOf(type, target);
     if (key == null || !mounted) return;
+    final again = key == _cur; // একই ট্যাবে আবার ট্যাপ => শুরুতে ফিরে যাবে
     setState(() {
       _pages.putIfAbsent(key, () => _buildPage(key, s));
       _cur = key;
     });
     TabNav.shellCur = key;
     TabNav.current.value = key;
+    if (again) WidgetsBinding.instance.addPostFrameCallback((_) => TabNav.pingReselect(key));
   }
 
   @override

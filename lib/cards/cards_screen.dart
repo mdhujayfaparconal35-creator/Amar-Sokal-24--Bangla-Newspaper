@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import '../fake_stats.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
@@ -7,6 +8,7 @@ import '../rewards/reward_api.dart';
 import '../rewards/reward_screens.dart';
 import '../util.dart';
 import 'cards_api.dart';
+import 'fake_comments.dart';
 
 /// "ফটো কার্ড" ট্যাব: ফেসবুক পেজের নিউজ ফটো কার্ড (পেজের কমেন্টের লিংকসহ); অ্যাপেই লাইক ও কমেন্ট করা যায়।
 class PhotoCardsScreen extends StatefulWidget {
@@ -20,6 +22,7 @@ class PhotoCardsScreen extends StatefulWidget {
 class _PhotoCardsScreenState extends State<PhotoCardsScreen> {
   final List<PhotoCard> _items = [];
   final ScrollController _sc = ScrollController();
+  VoidCallback? _unRe;
   String _next = '';
   bool _loading = false, _more = false;
   String _error = '';
@@ -27,6 +30,7 @@ class _PhotoCardsScreenState extends State<PhotoCardsScreen> {
   @override
   void initState() {
     super.initState();
+    _unRe = TabNav.onReselect('photocard', () => TabNav.scrollTop(_sc));
     _sc.addListener(() {
       if (_sc.hasClients && _sc.position.pixels > _sc.position.maxScrollExtent - 600) _loadMore();
     });
@@ -35,6 +39,7 @@ class _PhotoCardsScreenState extends State<PhotoCardsScreen> {
 
   @override
   void dispose() {
+    _unRe?.call();
     _sc.dispose();
     super.dispose();
   }
@@ -268,12 +273,12 @@ class _CardTileState extends State<_CardTile> {
             TextButton.icon(
               onPressed: _like,
               icon: Icon(c.liked ? Icons.favorite : Icons.favorite_border, color: c.liked ? Colors.red.shade600 : grey),
-              label: Text(c.likes > 0 ? bn(c.likes) : 'লাইক', style: TextStyle(color: c.liked ? Colors.red.shade600 : grey, fontWeight: FontWeight.w700)),
+              label: Text(FakeStats.fmt(FakeStats.cardLikes(c.id) + (c.likes < 0 ? 0 : c.likes)), style: TextStyle(color: c.liked ? Colors.red.shade600 : grey, fontWeight: FontWeight.w700)),
             ),
             TextButton.icon(
               onPressed: _openComments,
               icon: Icon(Icons.mode_comment_outlined, color: grey),
-              label: Text(c.comments > 0 ? '${bn(c.comments)} কমেন্ট' : 'কমেন্ট', style: TextStyle(color: grey, fontWeight: FontWeight.w700)),
+              label: Text((c.comments + FakeComments.baseCount(c.id)) > 0 ? '${bn(c.comments + FakeComments.baseCount(c.id))} কমেন্ট' : 'কমেন্ট', style: TextStyle(color: grey, fontWeight: FontWeight.w700)),
             ),
             const Spacer(),
             IconButton(
@@ -302,6 +307,7 @@ class _CommentsSheet extends StatefulWidget {
 
 class _CommentsSheetState extends State<_CommentsSheet> {
   final List<CardComment> _list = [];
+  late final List<CardComment> _fake = FakeComments.forCard(widget.card);
   final _ctrl = TextEditingController();
   int _page = 1;
   bool _loading = true, _done = false, _sending = false;
@@ -377,6 +383,8 @@ class _CommentsSheetState extends State<_CommentsSheet> {
     final t = Theme.of(context);
     final grey = t.colorScheme.onSurface.withAlpha(150);
     final logged = RewardApi.loggedIn.value;
+    // আসল কমেন্ট আগে, সব আসল কমেন্ট দেখানো শেষ হলে তার নিচে ডেমো কমেন্ট
+    final all = <CardComment>[..._list, if (_done) ..._fake];
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SizedBox(
@@ -391,7 +399,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
           ),
           const Divider(height: 1),
           Expanded(
-            child: _list.isEmpty
+            child: all.isEmpty
                 ? Center(
                     child: _loading
                         ? const CircularProgressIndicator()
@@ -401,13 +409,13 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                           ),
                   )
                 : ListView.builder(
-                    itemCount: _list.length + 1,
+                    itemCount: all.length + 1,
                     itemBuilder: (context, i) {
-                      if (i == _list.length) {
+                      if (i == all.length) {
                         if (_done) return const SizedBox(height: 12);
                         return Center(child: TextButton(onPressed: _loading ? null : _load, child: Text(_loading ? 'লোড হচ্ছে…' : 'আরও কমেন্ট দেখুন')));
                       }
-                      final cm = _list[i];
+                      final cm = all[i];
                       return ListTile(
                         dense: true,
                         leading: CircleAvatar(radius: 16, backgroundColor: t.colorScheme.primary.withAlpha(30), child: Text(cm.name.isEmpty ? '?' : cm.name.characters.first, style: TextStyle(color: t.colorScheme.primary, fontWeight: FontWeight.w800))),
