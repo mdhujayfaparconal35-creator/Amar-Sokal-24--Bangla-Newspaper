@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:ota_update/ota_update.dart';
+import 'dart:io';
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'config.dart';
 import 'notifications.dart';
@@ -189,7 +191,7 @@ class _UpdateSheetState extends State<_UpdateSheet> {
     });
   }
 
-  /// অ্যাপের ভেতরেই APK নামিয়ে ফোনের ইনস্টলার খোলে (OtaUpdate)
+  /// অ্যাপের ভেতরেই APK নামিয়ে (প্রগ্রেস সহ) ফোনের ইনস্টলার খোলে
   Future<void> _install() async {
     if (_busy) return;
     setState(() {
@@ -198,40 +200,64 @@ class _UpdateSheetState extends State<_UpdateSheet> {
       _pct = 0;
       _msg = 'ডাউনলোড শুরু হচ্ছে…';
     });
+    final client = http.Client();
     try {
-      final stream = OtaUpdate().execute(UpdateChecker.directUrl(info.url), destinationFilename: 'amarsokal24_update.apk');
-      await for (final ev in stream) {
-        if (!mounted) return;
-        final st = ev.status.toString().split('.').last;
-        if (st == 'DOWNLOADING') {
-          setState(() {
-            _pct = int.tryParse(ev.value ?? '') ?? _pct;
-            _msg = 'ডাউনলোড হচ্ছে…';
-          });
-        } else if (st == 'INSTALLING') {
-          setState(() {
-            _pct = 100;
-            _msg = 'ইনস্টলার খুলেছে — ফোনের "ইনস্টল/আপডেট" বাটনে চাপুন। প্রথমবার "এই উৎস থেকে অনুমতি" চাইলে অনুমতি দিন।';
-            _busy = false;
-          });
-        } else if (st == 'INSTALLATION_DONE') {
-          setState(() {
-            _busy = false;
-            _msg = 'ইনস্টল সম্পন্ন।';
-          });
-        } else if (st == 'CANCELED') {
-          _fail('বাতিল হয়েছে।');
-          return;
-        } else if (st.contains('ERROR')) {
-          _fail(st == 'PERMISSION_NOT_GRANTED_ERROR'
-              ? 'ইনস্টলের অনুমতি দেওয়া হয়নি। ফোনের সেটিংসে এই অ্যাপকে "অ্যাপ ইনস্টল করার অনুমতি" দিয়ে আবার চেষ্টা করুন।'
-              : 'অ্যাপের ভেতরে ডাউনলোড করা যায়নি। আবার চেষ্টা করুন বা নিচের "ব্রাউজারে ডাউনলোড" চাপুন।');
-          return;
+      final dir = await getTemporaryDirectory();
+      final f = File('${dir.path}/amarsokal24_update.apk');
+      if (await f.exists()) await f.delete();
+      final res = await client.send(http.Request('GET', Uri.parse(UpdateChecker.directUrl(info.url)))).timeout(const Duration(seconds: 40));
+      if (res.statusCode != 200) throw 'http ${res.statusCode}';
+      final total = res.contentLength ?? 0;
+      var got = 0;
+      var first = true;
+      var lastShown = -1;
+      final sink = f.openWrite();
+      try {
+        await for (final chunk in res.stream) {
+          if (first) {
+            first = false;
+            // APK আসলে জিপ ফাইল ("PK" দিয়ে শুরু); ড্রাইভ/সাইটের HTML পাতা এলে এখানেই ধরা পড়ে
+            if (chunk.length < 2 || chunk[0] != 0x50 || chunk[1] != 0x4B) throw 'notapk';
+          }
+          sink.add(chunk);
+          got += chunk.length;
+          if (!mounted) return;
+          final shown = total > 0 ? (got * 100 ~/ total) : (got ~/ 400000);
+          if (shown != lastShown) {
+            lastShown = shown;
+            setState(() {
+              _pct = total > 0 ? shown : 0;
+              _msg = total > 0 ? 'ডাউনলোড হচ্ছে…' : 'ডাউনলোড হচ্ছে… ${(got / 1048576).toStringAsFixed(1)} MB';
+            });
+          }
         }
+      } finally {
+        await sink.close();
       }
-      if (mounted && _busy) setState(() => _busy = false);
-    } catch (_) {
-      _fail('অ্যাপের ভেতরে ডাউনলোড করা যায়নি। আবার চেষ্টা করুন বা নিচের "ব্রাউজারে ডাউনলোড" চাপুন।');
+      if (got < 1000000) throw 'small';
+      if (!mounted) return;
+      setState(() {
+        _pct = 100;
+        _msg = 'ইনস্টলার খুলছে…';
+      });
+      final r = await OpenFilex.open(f.path, type: 'application/vnd.android.package-archive');
+      if (!mounted) return;
+      if (r.type == ResultType.done) {
+        setState(() {
+          _busy = false;
+          _msg = 'ইনস্টলার খুলেছে — ফোনের "ইনস্টল/আপডেট" বাটনে চাপুন।';
+        });
+      } else if (r.type == ResultType.permissionDenied) {
+        _fail('ইনস্টলের অনুমতি লাগবে। ফোনের সেটিংসে এই অ্যাপকে "অ্যাপ ইনস্টল করার অনুমতি" দিয়ে আবার "আবার চেষ্টা করুন" চাপুন।');
+      } else {
+        _fail('ইনস্টলার খোলা যায়নি। আবার চেষ্টা করুন বা নিচের "ব্রাউজারে ডাউনলোড" চাপুন।');
+      }
+    } catch (e) {
+      _fail(e == 'notapk'
+          ? 'ডাউনলোড লিংকে APK ফাইল পাওয়া যায়নি (লিংক ঠিক আছে কিনা দেখুন)। নিচের "ব্রাউজারে ডাউনলোড" চাপুন।'
+          : 'ডাউনলোড করা যায়নি। ইন্টারনেট দেখে আবার চেষ্টা করুন বা নিচের "ব্রাউজারে ডাউনলোড" চাপুন।');
+    } finally {
+      client.close();
     }
   }
 
