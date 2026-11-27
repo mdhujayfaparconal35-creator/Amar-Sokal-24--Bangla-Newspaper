@@ -195,6 +195,27 @@ class _UpdateSheetState extends State<_UpdateSheet> {
   }
 
   static const MethodChannel _ch = MethodChannel('amarsokal24/installer');
+  String _nat = ''; // অ্যাপে নেটিভ ইনস্টলার ঢুকেছে কিনা (আছে/নেই)
+
+  @override
+  void initState() {
+    super.initState();
+    _probe();
+  }
+
+  Future<void> _probe() async {
+    String r;
+    try {
+      final can = await _ch.invokeMethod<bool>('canInstall');
+      r = can == false ? 'আছে, অনুমতি লাগবে' : 'আছে';
+    } on MissingPluginException {
+      r = 'নেই';
+    } catch (_) {
+      r = '';
+    }
+    if (mounted) setState(() => _nat = r);
+  }
+
 
   /// ফেরত true = এই পদ্ধতিতে সামলানো হয়েছে (সফল/ব্যর্থ পর্দায় দেখানো হয়েছে); false = নেটিভ ইনস্টলার নেই, আগের পদ্ধতিতে যাও
   Future<bool> _nativeInstall(File f) async {
@@ -337,6 +358,8 @@ class _UpdateSheetState extends State<_UpdateSheet> {
                     decoration: BoxDecoration(color: Colors.white.withAlpha(34), borderRadius: BorderRadius.circular(12)),
                     child: Text(info.version.isEmpty ? 'সংস্করণ ${bn(info.build)}' : 'সংস্করণ ${bn(info.version)}', style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w700)),
                   ),
+                  const SizedBox(height: 4),
+                  Text('আপনার অ্যাপ: build ${bn(AppConfig.build)}  →  নতুন: build ${bn(info.build)}${_nat.isEmpty ? '' : '  •  ইনস্টলার: $_nat'}', style: const TextStyle(color: Colors.white70, fontSize: 11.5)),
                 ]),
               ),
             ]),
